@@ -51,10 +51,10 @@ stop:
 	printf " \ueab2\n"
 
 	printf "\uea9c Stopping kafka-native container"
-	docker ps -q -f name=kafka -f ancestor=apache/kafka-native | xargs -r docker stop >/dev/null 2>&1 || true
-	docker ps -q -f name=kafka -f ancestor=apache/kafka-native | xargs -r docker rm >/dev/null 2>&1 || true
+	docker ps -q -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) | xargs -r docker stop >/dev/null 2>&1 || true
+	docker ps -aq -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) | xargs -r docker rm >/dev/null 2>&1 || true
 	printf " \ueab2\n"
 
 status:
 	minikube status -p $(K8S_CLUSTER_NAME) || true
-	docker ps -f name=kafka -f ancestor=apache/kafka-native --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
+	docker ps -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
