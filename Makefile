@@ -6,6 +6,12 @@ ifndef VERBOSE
 .SILENT:
 endif
 
+ifdef CI
+GINKGO_FLAGS = -r -cover --github-output
+else
+GINKGO_FLAGS = -r -v -cover -coverprofile=coverage.out
+endif
+
 K8S_VERSION ?= 1.30
 K8S_CLUSTER_NAME ?= dev.kube2kafka.local
 KAFKA_NATIVE_VERSION ?= 3.8.0
@@ -21,6 +27,7 @@ help:
 	echo "  test          Run tests"
 	echo ""
 	echo "Use VERBOSE=1 to enable verbose mode, e.g. VERBOSE=1 make start"
+	echo "Use CI=1 to enable CI mode, e.g. CI=1 make test"
 
 all: help
 
@@ -61,4 +68,4 @@ status:
 	docker ps -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
 
 test:
-	ginkgo -r -v -cover -coverprofile=coverage.out
+	ginkgo $(GINKGO_FLAGS)

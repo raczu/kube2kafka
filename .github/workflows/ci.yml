@@ -1,0 +1,43 @@
+name: ci
+
+on: [ push, pull_request ]
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - uses: actions/checkout@v4
+
+      - name: check modules
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: go install .
+
+      - name: build
+        run: go build -v ./...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - uses: actions/checkout@v4
+
+      - name: deps
+        run: go install .
+
+      - name: test
+        run: make test
