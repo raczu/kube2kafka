@@ -1,0 +1,46 @@
+name: development
+
+on: [ push, pull_request ]
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+
+      - name: check modules
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+
+      - name: install dependencies
+        run: go install .
+
+      - name: build kube2kafka
+        run: go build -v ./...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+
+      - name: install dependencies
+        run: go install .
+
+      - name: install ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
+
+      - name: test
+        run: make test
