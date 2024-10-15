@@ -24,6 +24,7 @@ help:
 	echo "  start         Start development environment"
 	echo "  stop          Stop development environment"
 	echo "  status        Show status of development environment"
+	echo "  lint          Run linters"
 	echo "  test          Run tests"
 	echo ""
 	echo "Use VERBOSE=1 to enable verbose mode, e.g. VERBOSE=1 make start"
@@ -66,6 +67,14 @@ stop:
 status:
 	minikube status -p $(K8S_CLUSTER_NAME) || true
 	docker ps -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
+
+lint: golangci-lint tidy-lint
+
+golangci-lint:
+	golangci-lint run
+
+tidy-lint:
+	go mod tidy && git diff --exit-code go.mod go.sum
 
 test:
 	ginkgo $(GINKGO_FLAGS)
