@@ -83,10 +83,20 @@ var _ = Describe("Logger", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(opts.Level.Enabled(zap.InfoLevel)).To(BeTrue())
 			Expect(opts.StacktraceLevel.Enabled(zap.ErrorLevel)).To(BeTrue())
+
+			logger = log.New(log.UseOptions(opts))
+			logger.Info("info message")
+
+			var res map[string]string
+			Expect(json.Unmarshal(buffer.Bytes(), &res)).To(Succeed())
+			Expect(res).To(HaveKey("ts"))
+
+			_, err = time.Parse(time.RFC3339, res["ts"])
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Context("and their arguments are valid", func() {
-			It("should use provided mode development mode", func() {
+			It("should use provided development mode", func() {
 				args := []string{"-log-devel=true"}
 				err := fs.Parse(args)
 

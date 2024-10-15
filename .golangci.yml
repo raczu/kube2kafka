@@ -1,0 +1,36 @@
+output:
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+
+linters-settings:
+  govet:
+    enable:
+      - nilness
+      - reflectvaluecompare
+      - sortslice
+      - unusedwrite
+
+  errcheck:
+    exclude-functions:
+      - (*go.uber.org/zap.Logger).Sync
+
+  revive:
+    rules:
+      - name: empty-block
+        disabled: true
+
+      - name: line-length-limit
+        arguments: [100]
+
+      - name: cognitive-complexity
+        arguments: [15]
