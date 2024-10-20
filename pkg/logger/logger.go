@@ -158,3 +158,10 @@ func UseOptions(in *Options) Option {
 		*out = *in
 	}
 }
+
+// WithDevelopment returns an option that puts the logger in development mode.
+func WithDevelopment() Option {
+	return func(o *Options) {
+		o.Development = true
+	}
+}
