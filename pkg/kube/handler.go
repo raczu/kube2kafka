@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const ()
-
 func timeSinceOccurrence(event *corev1.Event) time.Duration {
 	timestamp := event.LastTimestamp.Time
 	if timestamp.IsZero() {

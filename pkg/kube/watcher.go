@@ -15,13 +15,13 @@ import (
 
 const (
 	DefaultEventBufferCap = 128
+	// DefaultMaxEventAge is the default maximum age of an event to be considered
+	// for writing to the buffer. This applies only during the initial cache sync.
+	DefaultMaxEventAge = 1 * time.Minute
 	// noResyncPeriod is used to disable the resync of the informer to avoid
 	// unnecessary writes to the buffer.
 	noResyncPeriod = 0
-	// defaultMaxEventAge is the default maximum age of an event to be considered
-	// for writing to the buffer. This applies only during the initial cache sync.
-	defaultMaxEventAge = 1 * time.Minute
-	defaultSyncTimeout = 30 * time.Second
+	syncTimeout    = 30 * time.Second
 )
 
 type EventBuffer = *circular.RingBuffer[EnhancedEvent]
@@ -53,7 +53,7 @@ func NewWatcher(config *rest.Config, cluster Cluster, opts ...WatcherOption) *Wa
 		informer:    informer,
 		logger:      log.New().Named("watcher"),
 		output:      NewEventBuffer(DefaultEventBufferCap),
-		maxEventAge: defaultMaxEventAge,
+		maxEventAge: DefaultMaxEventAge,
 	}
 
 	for _, opt := range opts {
@@ -81,7 +81,7 @@ func (w *Watcher) Watch(ctx context.Context) error {
 	h, _ := w.informer.AddEventHandler(w.handler)
 	go w.informer.Run(ctx.Done())
 
-	sync, cancel := context.WithTimeout(ctx, defaultSyncTimeout)
+	sync, cancel := context.WithTimeout(ctx, syncTimeout)
 	defer cancel()
 
 	w.logger.Info("syncing initial watcher cache...")
