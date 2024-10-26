@@ -6,7 +6,6 @@ import (
 	"github.com/raczu/kube2kafka/pkg/circular"
 	log "github.com/raczu/kube2kafka/pkg/logger"
 	"go.uber.org/zap"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -15,9 +14,14 @@ import (
 )
 
 const (
-	NoResyncPeriod        = 0 * time.Second
-	DefaultMaxEventAge    = 5 * time.Minute
 	DefaultEventBufferCap = 128
+	// noResyncPeriod is used to disable the resync of the informer to avoid
+	// unnecessary writes to the buffer.
+	noResyncPeriod = 0
+	// defaultMaxEventAge is the default maximum age of an event to be considered
+	// for writing to the buffer. This applies only during the initial cache sync.
+	defaultMaxEventAge = 1 * time.Minute
+	defaultSyncTimeout = 30 * time.Second
 )
 
 type EventBuffer = *circular.RingBuffer[EnhancedEvent]
@@ -26,20 +30,13 @@ func NewEventBuffer(capacity int) EventBuffer {
 	return circular.NewRingBuffer[EnhancedEvent](capacity)
 }
 
-func timeSinceOccurrence(event *corev1.Event) time.Duration {
-	timestamp := event.LastTimestamp.Time
-	if timestamp.IsZero() {
-		timestamp = event.EventTime.Time
-	}
-	return time.Since(timestamp)
-}
-
 type WatcherOption func(*Watcher)
 
 type Watcher struct {
 	informer    cache.SharedIndexInformer
-	cluster     Cluster
 	maxEventAge time.Duration
+	handler     *EventHandler
+	output      EventBuffer
 	logger      *zap.Logger
 }
 
@@ -47,81 +44,58 @@ func NewWatcher(config *rest.Config, cluster Cluster, opts ...WatcherOption) *Wa
 	client := kubernetes.NewForConfigOrDie(config)
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		client,
-		NoResyncPeriod,
+		noResyncPeriod,
 		informers.WithNamespace(cluster.TargetNamespace),
 	)
 	informer := factory.Core().V1().Events().Informer()
 
 	watcher := &Watcher{
 		informer:    informer,
-		cluster:     cluster,
-		maxEventAge: DefaultMaxEventAge,
 		logger:      log.New().Named("watcher"),
+		output:      NewEventBuffer(DefaultEventBufferCap),
+		maxEventAge: defaultMaxEventAge,
 	}
 
 	for _, opt := range opts {
 		opt(watcher)
 	}
 
+	watcher.handler = &EventHandler{
+		output:      watcher.output,
+		clusterName: cluster.Name,
+		maxEventAge: watcher.maxEventAge,
+		logger:      watcher.logger.Named("handler"),
+	}
 	return watcher
 }
 
-func (w *Watcher) handleEvent(event *corev1.Event, out EventBuffer) {
-	w.logger.Info(
-		"observed event",
-		zap.String("namespace", event.Namespace),
-		zap.String("name", event.Name),
-		zap.String("reason", event.Reason),
-		zap.String("regarding", event.InvolvedObject.Name),
-	)
-
-	since := timeSinceOccurrence(event)
-	if since > w.maxEventAge {
-		w.logger.Debug(
-			"event does not meet the max age criteria",
-			zap.String("namespace", event.Namespace),
-			zap.String("name", event.Name),
-			zap.Duration("age", since),
-		)
-		return
-	}
-
-	ev := EnhancedEvent{
-		Event:       *event.DeepCopy(),
-		ClusterName: w.cluster.Name,
-	}
-	out.Write(ev)
+// GetBuffer returns the buffer where the watcher writes the observed events.
+func (w *Watcher) GetBuffer() EventBuffer {
+	return w.output
 }
 
 // Watch starts the watcher, which writes observed events to the buffer
 // until the context is canceled. It returns an error if the initial cache
 // sync fails.
-func (w *Watcher) Watch(ctx context.Context, out EventBuffer) error {
-	handler, _ := w.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			event := obj.(*corev1.Event)
-			w.handleEvent(event, out)
-		},
-		UpdateFunc: func(_, obj interface{}) {
-			event := obj.(*corev1.Event)
-			w.handleEvent(event, out)
-		},
-		DeleteFunc: func(obj interface{}) {
-			// Do nothing as we are only interested in new or
-			// updated events.
-		},
-	})
+func (w *Watcher) Watch(ctx context.Context) error {
+	h, _ := w.informer.AddEventHandler(w.handler)
+	go w.informer.Run(ctx.Done())
 
-	if !cache.WaitForCacheSync(ctx.Done(), handler.HasSynced) {
-		return fmt.Errorf("initial cache sync failed")
+	sync, cancel := context.WithTimeout(ctx, defaultSyncTimeout)
+	defer cancel()
+
+	w.logger.Info("syncing initial watcher cache...")
+	if !cache.WaitForCacheSync(sync.Done(), h.HasSynced) {
+		return fmt.Errorf("initial cache sync for watcher failed: %w", sync.Err())
 	}
+	w.logger.Info("initial watcher cache synced")
 
-	w.informer.Run(ctx.Done())
+	<-ctx.Done()
 	return nil
 }
 
 // WithMaxEventAge sets the maximum age of an event to be considered for
-// writing to the buffer.
+// writing to the buffer. This applies only during the initial cache sync.
 func WithMaxEventAge(age time.Duration) WatcherOption {
 	return func(w *Watcher) {
 		w.maxEventAge = age
@@ -132,5 +106,12 @@ func WithMaxEventAge(age time.Duration) WatcherOption {
 func WithLogger(logger *zap.Logger) WatcherOption {
 	return func(w *Watcher) {
 		w.logger = logger
+	}
+}
+
+// WriteTo sets the buffer where the watcher writes the observed events.
+func WriteTo(output EventBuffer) WatcherOption {
+	return func(w *Watcher) {
+		w.output = output
 	}
 }
