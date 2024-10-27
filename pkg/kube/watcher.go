@@ -21,7 +21,7 @@ const (
 	// noResyncPeriod is used to disable the resync of the informer to avoid
 	// unnecessary writes to the buffer.
 	noResyncPeriod = 0
-	syncTimeout    = 30 * time.Second
+	syncTimeout    = 5 * time.Second
 )
 
 type EventBuffer = *circular.RingBuffer[EnhancedEvent]
@@ -40,8 +40,12 @@ type Watcher struct {
 	logger      *zap.Logger
 }
 
+var CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
+	return kubernetes.NewForConfigOrDie(config)
+}
+
 func NewWatcher(config *rest.Config, cluster Cluster, opts ...WatcherOption) *Watcher {
-	client := kubernetes.NewForConfigOrDie(config)
+	client := CreateKubeClient(config)
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		client,
 		noResyncPeriod,
