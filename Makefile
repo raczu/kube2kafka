@@ -6,7 +6,7 @@ ifndef VERBOSE
 .SILENT:
 endif
 
-GINKGO_BASE_FLAGS = -r -cover
+GINKGO_BASE_FLAGS = -r -cover -p -nodes=4
 ifdef CI
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) --github-output
 else

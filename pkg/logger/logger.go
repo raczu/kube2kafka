@@ -127,8 +127,8 @@ func (o *Options) BindFlags(fs *flag.FlagSet) {
 }
 
 // New creates a new logger with the given options.
-// If no options are provided, the logger is created with the default options related to the
-// production mode.
+// If no options are provided, the logger is created with the default options regarding
+// the production mode.
 func New(options ...Option) *zap.Logger {
 	opts := &Options{}
 	for _, opt := range options {
