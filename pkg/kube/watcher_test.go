@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,7 @@ var _ = Describe("Watcher", func() {
 		logger    *zap.Logger
 		cluster   *kube.Cluster
 		watcher   *kube.Watcher
+		wg        sync.WaitGroup
 	)
 
 	BeforeEach(func() {
@@ -43,6 +45,10 @@ var _ = Describe("Watcher", func() {
 		watcher = kube.NewWatcher(&rest.Config{}, *cluster, kube.WithLogger(logger))
 	})
 
+	AfterEach(func() {
+		wg.Wait()
+	})
+
 	When("syncing initial watcher cache", func() {
 		It("should return error if the context is canceled before the sync is done", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
@@ -58,7 +64,9 @@ var _ = Describe("Watcher", func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					_ = watcher.Watch(ctx)
 				}()
 				Expect(watcher.GetBuffer().Size()).To(Equal(0))
@@ -88,8 +96,7 @@ var _ = Describe("Watcher", func() {
 			})
 
 			AfterEach(func() {
-				// Wait for goroutines to finish.
-				time.Sleep(1 * time.Second)
+				wg.Wait()
 			})
 
 			It("should write event to the buffer", func() {
@@ -101,12 +108,15 @@ var _ = Describe("Watcher", func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					_ = watcher.Watch(ctx)
 				}()
 
-				time.Sleep(500 * time.Millisecond)
-				Expect(watcher.GetBuffer().Size()).To(Equal(1))
+				Eventually(func() int {
+					return watcher.GetBuffer().Size()
+				}, 5*time.Second, 500*time.Millisecond).Should(Equal(1))
 			})
 
 			It("should not write event older than the max age", func() {
@@ -119,12 +129,15 @@ var _ = Describe("Watcher", func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					_ = watcher.Watch(ctx)
 				}()
 
-				time.Sleep(500 * time.Millisecond)
-				Expect(watcher.GetBuffer().Size()).To(Equal(0))
+				Consistently(func() int {
+					return watcher.GetBuffer().Size()
+				}, 2*time.Second, 500*time.Millisecond).Should(Equal(0))
 			})
 		})
 	})
@@ -137,10 +150,35 @@ var _ = Describe("Watcher", func() {
 		)
 
 		BeforeEach(func() {
+			// Warmup the cache.
+			dummy := &corev1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "dummy",
+					Namespace: cluster.TargetNamespace,
+				},
+				LastTimestamp: metav1.Now(),
+			}
+
+			_, err := clientset.CoreV1().
+				Events(cluster.TargetNamespace).
+				Create(context.TODO(), dummy, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
 			ctx, cancel = context.WithCancel(context.Background())
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				_ = watcher.Watch(ctx)
 			}()
+
+			// Wait for the cache to sync.
+			Eventually(func() int {
+				return watcher.GetBuffer().Size()
+			}, 5*time.Second, 500*time.Millisecond).Should(Equal(1))
+
+			// Drain the buffer to avoid false positives.
+			_, ok := watcher.GetBuffer().Read()
+			Expect(ok).To(BeTrue())
 
 			now := metav1.Now()
 			event = &corev1.Event{
@@ -161,8 +199,7 @@ var _ = Describe("Watcher", func() {
 
 		AfterEach(func() {
 			cancel()
-			// Wait for goroutines to finish.
-			time.Sleep(1 * time.Second)
+			wg.Wait()
 		})
 
 		It("should write the event to the buffer", func() {
@@ -171,8 +208,9 @@ var _ = Describe("Watcher", func() {
 				Create(context.TODO(), event, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			time.Sleep(500 * time.Millisecond)
-			Expect(watcher.GetBuffer().Size()).To(Equal(1))
+			Eventually(func() int {
+				return watcher.GetBuffer().Size()
+			}, 5*time.Second, 500*time.Millisecond).Should(Equal(1))
 		})
 
 		Context("but this is an update of an existing event", func() {
@@ -181,7 +219,10 @@ var _ = Describe("Watcher", func() {
 					Events(cluster.TargetNamespace).
 					Create(context.TODO(), event, metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(500 * time.Millisecond)
+
+				Eventually(func() int {
+					return watcher.GetBuffer().Size()
+				}, 5*time.Second, 500*time.Millisecond).Should(Equal(1))
 			})
 
 			It("should write the updated event to the buffer", func() {
@@ -193,8 +234,9 @@ var _ = Describe("Watcher", func() {
 					Update(context.TODO(), event, metav1.UpdateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
-				time.Sleep(500 * time.Millisecond)
-				Expect(watcher.GetBuffer().Size()).To(Equal(2))
+				Eventually(func() int {
+					return watcher.GetBuffer().Size()
+				}, 5*time.Second, 500*time.Millisecond).Should(Equal(2))
 			})
 
 			It("should not write the event if the resource version is the same", func() {
@@ -205,8 +247,9 @@ var _ = Describe("Watcher", func() {
 					Update(context.TODO(), event, metav1.UpdateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
-				time.Sleep(500 * time.Millisecond)
-				Expect(watcher.GetBuffer().Size()).To(Equal(1))
+				Consistently(func() int {
+					return watcher.GetBuffer().Size()
+				}, 5*time.Second, 500*time.Millisecond).Should(Equal(1))
 			})
 		})
 	})
