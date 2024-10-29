@@ -1,4 +1,4 @@
-package kube_test
+package watcher_test
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/raczu/kube2kafka/pkg/kube"
+	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
 	log "github.com/raczu/kube2kafka/pkg/logger"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -22,13 +23,13 @@ var _ = Describe("Watcher", func() {
 		clientset *fake.Clientset
 		logger    *zap.Logger
 		cluster   *kube.Cluster
-		watcher   *kube.Watcher
+		watcher   *kubewatcher.Watcher
 		wg        sync.WaitGroup
 	)
 
 	BeforeEach(func() {
 		clientset = fake.NewSimpleClientset()
-		kube.CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
+		kubewatcher.CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
 			return clientset
 		}
 
@@ -42,7 +43,7 @@ var _ = Describe("Watcher", func() {
 			TargetNamespace: corev1.NamespaceAll,
 		}
 
-		watcher = kube.NewWatcher(&rest.Config{}, *cluster, kube.WithLogger(logger))
+		watcher = kubewatcher.New(&rest.Config{}, *cluster, kubewatcher.WithLogger(logger))
 	})
 
 	AfterEach(func() {
@@ -120,7 +121,9 @@ var _ = Describe("Watcher", func() {
 			})
 
 			It("should not write event older than the max age", func() {
-				event.LastTimestamp = metav1.NewTime(time.Now().Add(-2 * kube.DefaultMaxEventAge))
+				event.LastTimestamp = metav1.NewTime(
+					time.Now().Add(-2 * kubewatcher.DefaultMaxEventAge),
+				)
 				_, err := clientset.CoreV1().
 					Events(cluster.TargetNamespace).
 					Create(context.TODO(), event, metav1.CreateOptions{})

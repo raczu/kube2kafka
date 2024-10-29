@@ -1,6 +1,7 @@
-package kube
+package watcher
 
 import (
+	"github.com/raczu/kube2kafka/pkg/kube"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"time"
@@ -22,7 +23,7 @@ type EventHandler struct {
 }
 
 func (eh *EventHandler) WriteToBuffer(event *corev1.Event) {
-	ev := EnhancedEvent{
+	ev := kube.EnhancedEvent{
 		Event:       *event.DeepCopy(),
 		ClusterName: eh.clusterName,
 	}
