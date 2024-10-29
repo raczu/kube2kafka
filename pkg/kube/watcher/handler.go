@@ -16,14 +16,14 @@ func timeSinceOccurrence(event *corev1.Event) time.Duration {
 }
 
 type EventHandler struct {
-	output      EventBuffer
+	output      *EventBuffer
 	clusterName string
 	maxEventAge time.Duration
 	logger      *zap.Logger
 }
 
 func (eh *EventHandler) WriteToBuffer(event *corev1.Event) {
-	ev := kube.EnhancedEvent{
+	ev := &kube.EnhancedEvent{
 		Event:       *event.DeepCopy(),
 		ClusterName: eh.clusterName,
 	}

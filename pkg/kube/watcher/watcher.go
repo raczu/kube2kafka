@@ -25,10 +25,10 @@ const (
 	syncTimeout    = 5 * time.Second
 )
 
-type EventBuffer = *circular.RingBuffer[kube.EnhancedEvent]
+type EventBuffer = circular.RingBuffer[*kube.EnhancedEvent]
 
-func NewEventBuffer(capacity int) EventBuffer {
-	return circular.NewRingBuffer[kube.EnhancedEvent](capacity)
+func NewEventBuffer(capacity int) *EventBuffer {
+	return circular.NewRingBuffer[*kube.EnhancedEvent](capacity)
 }
 
 type Option func(*Watcher)
@@ -37,7 +37,7 @@ type Watcher struct {
 	informer    cache.SharedIndexInformer
 	maxEventAge time.Duration
 	handler     *EventHandler
-	output      EventBuffer
+	output      *EventBuffer
 	logger      *zap.Logger
 }
 
@@ -75,7 +75,7 @@ func New(config *rest.Config, cluster kube.Cluster, opts ...Option) *Watcher {
 }
 
 // GetBuffer returns the buffer where the watcher writes the observed events.
-func (w *Watcher) GetBuffer() EventBuffer {
+func (w *Watcher) GetBuffer() *EventBuffer {
 	return w.output
 }
 
@@ -115,7 +115,7 @@ func WithLogger(logger *zap.Logger) Option {
 }
 
 // WriteTo sets the buffer where the watcher writes the observed events.
-func WriteTo(output EventBuffer) Option {
+func WriteTo(output *EventBuffer) Option {
 	return func(w *Watcher) {
 		w.output = output
 	}
