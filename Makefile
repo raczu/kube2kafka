@@ -6,11 +6,11 @@ ifndef VERBOSE
 .SILENT:
 endif
 
-GINKGO_BASE_FLAGS = -r -cover -p -nodes=4
+GINKGO_BASE_FLAGS = -r -cover
 ifdef CI
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) --github-output
 else
-GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) -v -coverprofile=coverage.out
+GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) -v -coverprofile=coverage.out -p
 endif
 
 K8S_VERSION ?= 1.30

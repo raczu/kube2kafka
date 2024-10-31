@@ -141,7 +141,7 @@ func New(options ...Option) *zap.Logger {
 	}
 	opts.ZapOptions = append(opts.ZapOptions, zap.AddStacktrace(opts.StacktraceLevel))
 
-	sink := zapcore.AddSync(opts.Output)
+	sink := zapcore.Lock(zapcore.AddSync(opts.Output))
 	opts.ZapOptions = append(opts.ZapOptions, zap.ErrorOutput(sink))
 
 	core := zapcore.NewCore(

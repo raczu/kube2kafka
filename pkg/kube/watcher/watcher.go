@@ -1,9 +1,10 @@
-package kube
+package watcher
 
 import (
 	"context"
 	"fmt"
 	"github.com/raczu/kube2kafka/pkg/circular"
+	"github.com/raczu/kube2kafka/pkg/kube"
 	log "github.com/raczu/kube2kafka/pkg/logger"
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
@@ -24,19 +25,19 @@ const (
 	syncTimeout    = 5 * time.Second
 )
 
-type EventBuffer = *circular.RingBuffer[EnhancedEvent]
+type EventBuffer = circular.RingBuffer[*kube.EnhancedEvent]
 
-func NewEventBuffer(capacity int) EventBuffer {
-	return circular.NewRingBuffer[EnhancedEvent](capacity)
+func NewEventBuffer(capacity int) *EventBuffer {
+	return circular.NewRingBuffer[*kube.EnhancedEvent](capacity)
 }
 
-type WatcherOption func(*Watcher)
+type Option func(*Watcher)
 
 type Watcher struct {
 	informer    cache.SharedIndexInformer
 	maxEventAge time.Duration
 	handler     *EventHandler
-	output      EventBuffer
+	output      *EventBuffer
 	logger      *zap.Logger
 }
 
@@ -44,7 +45,7 @@ var CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(config)
 }
 
-func NewWatcher(config *rest.Config, cluster Cluster, opts ...WatcherOption) *Watcher {
+func New(config *rest.Config, cluster kube.Cluster, opts ...Option) *Watcher {
 	client := CreateKubeClient(config)
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		client,
@@ -74,7 +75,7 @@ func NewWatcher(config *rest.Config, cluster Cluster, opts ...WatcherOption) *Wa
 }
 
 // GetBuffer returns the buffer where the watcher writes the observed events.
-func (w *Watcher) GetBuffer() EventBuffer {
+func (w *Watcher) GetBuffer() *EventBuffer {
 	return w.output
 }
 
@@ -100,21 +101,21 @@ func (w *Watcher) Watch(ctx context.Context) error {
 
 // WithMaxEventAge sets the maximum age of an event to be considered for
 // writing to the buffer. This applies only during the initial cache sync.
-func WithMaxEventAge(age time.Duration) WatcherOption {
+func WithMaxEventAge(age time.Duration) Option {
 	return func(w *Watcher) {
 		w.maxEventAge = age
 	}
 }
 
 // WithLogger sets the logger for the watcher.
-func WithLogger(logger *zap.Logger) WatcherOption {
+func WithLogger(logger *zap.Logger) Option {
 	return func(w *Watcher) {
 		w.logger = logger
 	}
 }
 
 // WriteTo sets the buffer where the watcher writes the observed events.
-func WriteTo(output EventBuffer) WatcherOption {
+func WriteTo(output *EventBuffer) Option {
 	return func(w *Watcher) {
 		w.output = output
 	}

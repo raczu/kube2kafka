@@ -3,7 +3,11 @@
 // purposes to ensure that the code behaves as expected.
 package assert
 
-import log "github.com/raczu/kube2kafka/pkg/logger"
+import (
+	"fmt"
+	log "github.com/raczu/kube2kafka/pkg/logger"
+	"go.uber.org/zap"
+)
 
 var logger = log.New(log.WithDevelopment())
 
@@ -11,5 +15,12 @@ var logger = log.New(log.WithDevelopment())
 func Assert(condition bool, message string) {
 	if !condition {
 		logger.Fatal(message)
+	}
+}
+
+// NoError logs a fatal message if the error is not nil.
+func NoError(err error, message string) {
+	if err != nil {
+		logger.Fatal(fmt.Sprintf("NoError: %s", message), zap.Error(err))
 	}
 }
