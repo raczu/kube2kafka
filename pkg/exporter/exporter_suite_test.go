@@ -1,4 +1,4 @@
-package kube_test
+package exporter_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestKube(t *testing.T) {
+func TestExporter(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Kube Suite")
+	RunSpecs(t, "Exporter Suite")
 }

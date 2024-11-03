@@ -57,5 +57,11 @@ jobs:
       - name: install ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo
 
+      - name: start kafka-native container
+        run: make kafka
+
       - name: test
         run: make test
+
+      - name: stop kafka-native container
+        run: make kafka-stop
