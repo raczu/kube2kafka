@@ -87,6 +87,10 @@ func (e *Exporter) write(ctx context.Context, messages []kafka.Message) (int, bo
 }
 
 func (e *Exporter) export(ctx context.Context) error {
+	if e.source.Size() == 0 {
+		return nil
+	}
+
 	messages := tryReadUpTo(e.source, e.writer.BatchSize)
 	written, fatal, err := e.write(ctx, messages)
 	if err != nil {
@@ -117,9 +121,6 @@ func (e *Exporter) Export(ctx context.Context) error {
 			}
 			return nil
 		case <-ticker.C:
-			if e.source.Size() == 0 {
-				continue
-			}
 			if err := e.export(ctx); err != nil {
 				return err
 			}
