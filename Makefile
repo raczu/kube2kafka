@@ -6,7 +6,7 @@ ifndef VERBOSE
 .SILENT:
 endif
 
-GINKGO_BASE_FLAGS = -r -cover
+GINKGO_BASE_FLAGS = -r -cover -race
 ifdef CI
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) --github-output
 else
@@ -16,6 +16,8 @@ endif
 K8S_VERSION ?= 1.30
 K8S_CLUSTER_NAME ?= dev.kube2kafka.local
 KAFKA_NATIVE_VERSION ?= 3.8.0
+
+KAFKA_TEST_BROKER ?= localhost:9092
 
 help:
 	echo "Usage: make <target>"
@@ -28,17 +30,20 @@ help:
 	echo "  lint          Run linters"
 	echo "  test          Run tests"
 	echo ""
-	echo "Use VERBOSE=1 to enable verbose mode, e.g. VERBOSE=1 make start"
-	echo "Use CI=1 to enable CI mode, e.g. CI=1 make test"
+	echo "Use VERBOSE=1 to enable verbose mode"
+	echo "Use CI=1 to enable CI mode"
+	echo "Use KAFKA_TEST_BROKER=<broker> to set the broker for tests"
 
 all: help
 
-start:
-	command -v minikube >/dev/null || (printf "\uea9c minikube is not installed"; exit 1)
+start: minikube kafka
+
+minikube:
 	printf "\uea9c Starting Kubernetes cluster"
 	minikube start -p $(K8S_CLUSTER_NAME) --kubernetes-version=$(K8S_VERSION) --driver=docker >/tmp/$$(date "+%Y%m%d%-H%M%S")-minikube-start.log 2>&1
 	printf " \ueab2\n"
 
+kafka:
 	printf "\uea9c Starting kafka-native container"
 	docker run -d \
 		--name=kafka \
@@ -55,11 +60,14 @@ start:
 		apache/kafka-native:$(KAFKA_NATIVE_VERSION) >/tmp/$$(date "+%Y%m%d%-H%M%S")-kafka-native-start.log 2>&1
 	printf " \ueab2\n"
 
-stop:
+stop: minikube-stop kafka-stop
+
+minikube-stop:
 	printf "\uea9c Stopping $(K8S_CLUSTER_NAME) cluster"
 	minikube stop -p $(K8S_CLUSTER_NAME) >/dev/null 2>&1 || true
 	printf " \ueab2\n"
 
+kafka-stop:
 	printf "\uea9c Stopping kafka-native container"
 	docker ps -q -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) | xargs -r docker stop >/dev/null 2>&1 || true
 	docker ps -aq -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) | xargs -r docker rm >/dev/null 2>&1 || true
@@ -78,4 +86,4 @@ tidy-lint:
 	go mod tidy && git diff --exit-code go.mod go.sum
 
 test:
-	ginkgo $(GINKGO_FLAGS)
+	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) ginkgo $(GINKGO_FLAGS)
