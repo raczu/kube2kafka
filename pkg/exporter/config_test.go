@@ -5,14 +5,21 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/raczu/kube2kafka/pkg/exporter"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/compress"
 	"github.com/segmentio/kafka-go/sasl/plain"
 )
 
 var _ = Describe("MapCodecString", func() {
 	When("mapping a known codec string", func() {
 		It("should return the corresponding kafka.Compression", func() {
-			codecs := []string{"gzip", "snappy", "lz4", "zstd"}
-			expected := []kafka.Compression{kafka.Gzip, kafka.Snappy, kafka.Lz4, kafka.Zstd}
+			codecs := []string{"none", "gzip", "snappy", "lz4", "zstd"}
+			expected := []kafka.Compression{
+				compress.None,
+				kafka.Gzip,
+				kafka.Snappy,
+				kafka.Lz4,
+				kafka.Zstd,
+			}
 
 			for i, codec := range codecs {
 				compression, err := exporter.MapCodecString(codec)

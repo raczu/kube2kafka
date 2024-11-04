@@ -1,0 +1,31 @@
+clusterName: "dev.kube2kafka.cluster"
+maxEventAge: "1h"
+kafka:
+  topic: foobar
+  brokers:
+    - "localhost:9092"
+  compression: "snappy"
+filters:
+    - kind: "Pod"
+      reason: "(?i)created"
+      message: ".*"
+      type: "Normal|Warning"
+selectors:
+    - key: cluster
+      value: "{{ .ClusterName }}"
+    - key: kind
+      value: "{{ .InvolvedObject.Kind }}"
+    - key: namespace
+      value: "{{ .Namespace }}"
+    - key: reason
+      value: "{{ .Reason }}"
+    - key: message
+      value: "{{ .Message }}"
+    - key: type
+      value: "{{ .Type }}"
+    - key: component
+      value: "{{ .Source.Component }}"
+    - key: occurred
+      value: "{{ .GetRFC3339Timestamp }}"
+    - key: count
+      value: "{{ .Count }}"
