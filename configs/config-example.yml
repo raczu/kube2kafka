@@ -1,0 +1,64 @@
+# This is an example configuration file for kube2kafka.
+# It covers all the possible configuration options.
+
+# The following fields are not required, but they are shown here for
+# demonstration purposes:
+# - namespace (default: all namespaces)
+# - maxEventAge (default: 1 minute)
+# - bufferSize (default: 128)
+# - kafka.compression (default: none)
+# - kafka.tls (default: no TLS)
+# - kafka.sasl (default: no SASL)
+# - kafka.sasl.mechanism (default: plain)
+# - filters (default: no filter will be applied)
+# - selectors (default: all fields will be sent to Kafka)
+
+clusterName: "example.kube2kafka.cluster"  # used to identify the cluster
+namespace: "default"
+# Max event age is used to filter out events during initial sync (list request).
+# This allows to avoid sending all occurred events to Kafka when kube2kafka starts.
+maxEventAge: "1m"
+# Each of crucial components of kube2kafka (watcher -> processor -> exporter) is connected
+# with next one using a ring buffer. The buffer size is used to control the amount of events
+# that can be stored in the buffer. In case of high traffic, buffer implementation will allow to
+# override the oldest data, thus its size should be adjusted to the expected traffic.
+bufferSize: 128
+kafka:
+  topic: foo
+  brokers:
+      - "broker:9092"
+      - "broker:9093"
+      - "broker:9094"
+  compression: "gzip"  # one of none, gzip, snappy, lz4 or zstd
+  tls:
+    cacert: "/path/to/ca.crt"
+    cert: "/path/to/client.crt"
+    key: "/path/to/client.key"
+  sasl:
+    username: username
+    password: password
+    mechanism: plain  # one of plain, sha256 or sha512
+# Fields in filters supports regular expressions.
+# There is no need to define every field in the filter as empty fields are omitted
+# from the comparison.
+# Only events that match any of defined filters will be sent to Kafka.
+filters:
+  - kind: "Pod"
+    namespace: "default|kube-system"
+    reason: "(?i)created"
+    message: ".*"
+    type: "Normal|Warning"
+    component: "^kubelet$"
+  - kind: "Service"
+    namespace: "^(default)?$"
+# Selectors are used to extract values from the event to create json payload which
+# will be sent to Kafka. The values are extracted using golang text/template package.
+# There is no risk when some error occurs during the field selection as the fallback
+# mechanism ensure that default fields will be selected.
+selectors:
+  - key: cluster
+    value: "{{ .ClusterName }}"
+  - key: kind
+    value: "{{ .InvolvedObject.Kind }}"
+  - key: namespace
+    value: "{{ .Namespace }}"

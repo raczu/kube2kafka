@@ -1,14 +1,55 @@
 package exporter
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/compress"
 	"github.com/segmentio/kafka-go/sasl"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
 )
 
+type TLSData struct {
+	CA         []byte
+	Cert       []byte
+	Key        []byte
+	SkipVerify bool
+}
+
+// Build creates a tls.Config from the TLSData.
+func (t *TLSData) Build() (*tls.Config, error) {
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	if t.CA != nil {
+		config.RootCAs = x509.NewCertPool()
+		if !config.RootCAs.AppendCertsFromPEM(t.CA) {
+			return nil, fmt.Errorf("failed to parse ca certificate")
+		}
+	}
+
+	if t.Cert != nil && t.Key != nil {
+		cert, err := tls.X509KeyPair(t.Cert, t.Key)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to parse client certificate and its private key: %w",
+				err,
+			)
+		}
+		config.Certificates = []tls.Certificate{cert}
+	}
+
+	if t.SkipVerify {
+		config.InsecureSkipVerify = true
+	}
+	return config, nil
+}
+
 var codec2compression = map[string]kafka.Compression{
+	"none":   compress.None,
 	"gzip":   kafka.Gzip,
 	"snappy": kafka.Snappy,
 	"lz4":    kafka.Lz4,

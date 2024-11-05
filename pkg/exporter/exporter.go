@@ -98,11 +98,12 @@ func (e *Exporter) export(ctx context.Context) error {
 			return fmt.Errorf("encountered fatal error: %w", err)
 		}
 		e.logger.Error("failed to write messages to kafka", zap.Error(err))
+	} else {
+		e.logger.Info(
+			"successfully wrote given number of messages to kafka",
+			zap.Int("written", written),
+		)
 	}
-	e.logger.Info(
-		"successfully wrote given number of messages to kafka",
-		zap.Int("written", written),
-	)
 	return nil
 }
 
