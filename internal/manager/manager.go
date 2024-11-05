@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	k2kconfig "github.com/raczu/kube2kafka/internal/config"
 	"github.com/raczu/kube2kafka/pkg/exporter"
-	"github.com/raczu/kube2kafka/pkg/kube"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
 	"github.com/raczu/kube2kafka/pkg/processor"
 	"github.com/segmentio/kafka-go/sasl"
@@ -136,26 +135,4 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	m.wg.Wait()
 	return err
-}
-
-// GetKubeConfigOrDie reads the kubeconfig, exiting the program if it fails.
-func GetKubeConfigOrDie(kubeconfig string, logger *zap.Logger) *rest.Config {
-	config, err := kube.GetKubeConfig(kubeconfig)
-	if err != nil {
-		logger.Fatal("error getting kubeconfig", zap.Error(err))
-	}
-	return config
-}
-
-// GetConfigOrDie reads the config file and validates it, exiting the program if it fails.
-func GetConfigOrDie(config string, logger *zap.Logger) *k2kconfig.Config {
-	cfg, err := k2kconfig.Read(config)
-	if err != nil {
-		logger.Fatal("error reading config", zap.Error(err))
-	}
-	cfg.SetDefaults()
-	if err = cfg.Validate(); err != nil {
-		logger.Fatal("failed to validate provided config", zap.Error(err))
-	}
-	return cfg
 }
