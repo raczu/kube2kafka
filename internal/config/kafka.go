@@ -95,21 +95,21 @@ func (c *KafkaConfig) Validate() error {
 	return nil
 }
 
-func (c *KafkaConfig) TLS() (*tls.Config, error) {
+func (c *KafkaConfig) GetTLS() (*tls.Config, error) {
 	if c.RawTLS == nil {
 		return nil, nil
 	}
 	return c.RawTLS.Build()
 }
 
-func (c *KafkaConfig) SASL() (sasl.Mechanism, error) {
+func (c *KafkaConfig) GetSASL() (sasl.Mechanism, error) {
 	if c.RawSASL == nil {
 		return nil, nil
 	}
 	return c.RawSASL.Build()
 }
 
-func (c *KafkaConfig) Compression() (kafka.Compression, error) {
+func (c *KafkaConfig) GetCompression() (kafka.Compression, error) {
 	compression, err := exporter.MapCodecString(c.RawCompression)
 	if err != nil {
 		return kafka.Compression(0), fmt.Errorf("failed to map codec string: %w", err)

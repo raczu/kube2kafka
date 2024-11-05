@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/raczu/kube2kafka/pkg/kube"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
 	"github.com/raczu/kube2kafka/pkg/processor"
 	"gopkg.in/yaml.v3"
@@ -60,6 +61,13 @@ func (c *Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (c *Config) GetCluster() kube.Cluster {
+	return kube.Cluster{
+		Name:            c.ClusterName,
+		TargetNamespace: c.TargetNamespace,
+	}
 }
 
 func Read(path string) (*Config, error) {
