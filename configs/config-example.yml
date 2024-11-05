@@ -5,6 +5,7 @@
 # demonstration purposes:
 # - namespace (default: all namespaces)
 # - maxEventAge (default: 1 minute)
+# - bufferSize (default: 128)
 # - kafka.compression (default: none)
 # - kafka.tls (default: no TLS)
 # - kafka.sasl (default: no SASL)
@@ -17,6 +18,11 @@ namespace: "default"
 # Max event age is used to filter out events during initial sync (list request).
 # This allows to avoid sending all occurred events to Kafka when kube2kafka starts.
 maxEventAge: "1m"
+# Each of crucial components of kube2kafka (watcher -> processor -> exporter) is connected
+# with next one using a ring buffer. The buffer size is used to control the amount of events
+# that can be stored in the buffer. In case of high traffic, buffer implementation will allow to
+# override the oldest data, thus its size should be adjusted to the expected traffic.
+bufferSize: 128
 kafka:
   topic: foo
   brokers:
