@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	k2kconfig "github.com/raczu/kube2kafka/internal/config"
 	"github.com/raczu/kube2kafka/pkg/exporter"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
@@ -11,6 +12,10 @@ import (
 	"go.uber.org/zap"
 	"k8s.io/client-go/rest"
 	"sync"
+)
+
+var (
+	ErrManagerNotSetup = errors.New("manager was not set up")
 )
 
 type Manager struct {
@@ -98,8 +103,12 @@ func (m *Manager) Setup() error {
 }
 
 func (m *Manager) Start(ctx context.Context) error {
+	if m.watcher == nil || m.processor == nil || m.exporter == nil {
+		return ErrManagerNotSetup
+	}
+
 	m.logger.Info("starting manager...")
-	ch := make(chan error, 1)
+	errs := make(chan error, 1)
 	subctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -107,8 +116,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	go func() {
 		defer m.wg.Done()
 		if err := m.watcher.Watch(subctx); err != nil {
-			ch <- err
-			return
+			errs <- err
 		}
 	}()
 
@@ -120,19 +128,25 @@ func (m *Manager) Start(ctx context.Context) error {
 	go func() {
 		defer m.wg.Done()
 		if err := m.exporter.Export(subctx); err != nil {
-			ch <- err
+			errs <- err
 		}
 	}()
 
 	var err error
 	select {
-	case <-subctx.Done():
-		m.logger.Info("context canceled, shutting down manager...")
-	case err = <-ch:
-		m.logger.Error("one of the components failed", zap.Error(err))
+	case <-ctx.Done():
+		m.logger.Info("context canceled, stopping manager...")
+	case err = <-errs:
+		m.logger.Error("one of the components failed, stopping manager...")
 		cancel()
 	}
 
 	m.wg.Wait()
+	// Ensure that error is not lost even if the context was canceled.
+	close(errs)
+	if e, ok := <-errs; ok {
+		err = e
+	}
+
 	return err
 }
