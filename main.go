@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	k2kconfig "github.com/raczu/kube2kafka/internal/config"
 	"github.com/raczu/kube2kafka/internal/manager"
+	"github.com/raczu/kube2kafka/pkg/kube"
 	log "github.com/raczu/kube2kafka/pkg/logger"
 	"go.uber.org/zap"
 	"os"
@@ -21,20 +23,31 @@ func main() {
 	logger := log.New(log.UseOptions(&opts))
 	defer logger.Sync()
 
-	mgr := manager.New(
-		manager.GetConfigOrDie(config, logger),
-		manager.GetKubeConfigOrDie(kubeconfig, logger),
-		logger.Named("manager"),
-	)
+	kubecfg, err := kube.GetKubeConfig(kubeconfig)
+	if err != nil {
+		logger.Fatal("failed to get kubeconfig", zap.Error(err))
+	}
 
-	if err := mgr.Setup(); err != nil {
+	var cfg *k2kconfig.Config
+	cfg, err = k2kconfig.Read(config)
+	if err != nil {
+		logger.Fatal("failed to read config", zap.Error(err))
+	}
+
+	cfg.SetDefaults()
+	if err = cfg.Validate(); err != nil {
+		logger.Fatal("failed to validate provided config", zap.Error(err))
+	}
+
+	mgr := manager.New(cfg, kubecfg, logger.Named("manager"))
+	if err = mgr.Setup(); err != nil {
 		logger.Fatal("failed to set up manager", zap.Error(err))
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
-	if err := mgr.Start(ctx); err != nil {
+	if err = mgr.Start(ctx); err != nil {
 		logger.Fatal("manager failed", zap.Error(err))
 	}
 }

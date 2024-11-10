@@ -8,6 +8,7 @@
 # - bufferSize (default: 128)
 # - kafka.compression (default: none)
 # - kafka.tls (default: no TLS)
+# - kafka.tls.skipVerify (default: false)
 # - kafka.sasl (default: no SASL)
 # - kafka.sasl.mechanism (default: plain)
 # - filters (default: no filter will be applied)
@@ -34,6 +35,7 @@ kafka:
     cacert: "/path/to/ca.crt"
     cert: "/path/to/client.crt"
     key: "/path/to/client.key"
+    skipVerify: true  # skip verification of the server's certificate
   sasl:
     username: username
     password: password
