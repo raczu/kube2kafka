@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube2kafka
+  namespace: kube2kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube2kafka
+  template:
+    metadata:
+      labels:
+        app: kube2kafka
+    spec:
+      serviceAccountName: kube2kafka-sa
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: kube2kafka
+          image: docker.io/raczu/kube2kafka:0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-config=/home/nonroot/.kube2kafka/config.yml"
+          volumeMounts:
+            - name: config
+              mountPath: /home/nonroot/.kube2kafka
+      volumes:
+        - name: config
+          configMap:
+            name: kube2kafka-config
+            items:
+              - key: config.yml
+                path: config.yml
