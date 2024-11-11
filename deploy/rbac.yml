@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube2kafka-sa
+  namespace: kube2kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+    name: kube2kafka-role
+rules:
+    - apiGroups: ["*"]
+      resources: ["events"]
+      verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+    name: kube2kafka-role-binding
+    namespace: kube2kafka
+roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: kube2kafka-role
+subjects:
+    - kind: ServiceAccount
+      name: kube2kafka-sa
+      namespace: kube2kafka

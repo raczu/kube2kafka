@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube2kafka-config
+  namespace: kube2kafka
+data:
+  config.yml: |
+    clusterName: k8s-cluster
+    kafka:
+      brokers:
+        - broker:9092
+      topic: k8s-events
+      compression: gzip
+      sasl:
+        username: username
+        password: pwd
+        mechanism: plain
+    selectors:
+        - key: cluster
+          value: "{{ .ClusterName }}"
+        - key: kind
+          value: "{{ .InvolvedObject.Kind }}"
+        - key: namespace
+          value: "{{ .Namespace }}"
+        - key: reason
+          value: "{{ .Reason }}"
+        - key: message
+          value: "{{ .Message }}"
+        - key: type
+          value: "{{ .Type }}"
+        - key: component
+          value: "{{ .Source.Component }}"
+        - key: timestamp
+          value: "{{ .GetRFC3339Timestamp }}"
+        - key: count
+          value: "{{ .Count }}"
