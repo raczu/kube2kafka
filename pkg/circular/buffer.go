@@ -34,11 +34,12 @@ func (rb *RingBuffer[T]) Write(value T) {
 	if rb.size == rb.capacity {
 		// Advance the tail to overwrite the oldest data.
 		rb.tail = (rb.tail + 1) % rb.capacity
+	} else {
+		rb.size++
 	}
 
 	rb.buffer[rb.head] = value
 	rb.head = (rb.head + 1) % rb.capacity
-	rb.size++
 }
 
 // Read returns the next value from buffer and true if the value
