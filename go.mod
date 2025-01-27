@@ -3,7 +3,7 @@ module github.com/raczu/kube2kafka
 go 1.22.8
 
 require (
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	github.com/segmentio/kafka-go v0.4.47
