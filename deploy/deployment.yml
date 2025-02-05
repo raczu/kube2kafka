@@ -19,6 +19,16 @@ spec:
       containers:
         - name: kube2kafka
           image: docker.io/raczu/kube2kafka:0.1.0
+          resources:
+            # Adjust the resource limits and requests to expected events traffic.
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+              ephemeral-storage: "50Mi"
+            limits:
+              memory: "96Mi"
+              cpu: "150m"
+              ephemeral-storage: "2Gi"
           imagePullPolicy: IfNotPresent
           args:
             - "-config=/home/nonroot/.kube2kafka/config.yml"
