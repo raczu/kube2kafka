@@ -15,6 +15,8 @@
 # - selectors (default: all fields will be sent to Kafka)
 
 clusterName: "example.kube2kafka.cluster"  # used to identify the cluster
+# Namespace is used to define the namespace in which events will be watched.
+# An alternative is to watch all namespaces and control the events exporting using filters.
 namespace: "default"
 # Max event age is used to filter out events during initial sync (list request).
 # This allows to avoid sending all occurred events to Kafka when kube2kafka starts.
