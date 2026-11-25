@@ -78,6 +78,7 @@ docker_signs:
 changelog:
   use: git
   sort: asc
+  abbrev: 7
   groups:
     - title: Breaking changes
       regexp: '^.*?\w+(\(.+\))?!:.+$'
@@ -89,12 +90,16 @@ changelog:
       regexp: '^.*?fix(\(.+\))?:.+$'
       order: 2
     - title: Other changes
-      order: 999
+      regexp: '^.*?build(\(.+\))?:.+$'
+      order: 3
   filters:
     exclude:
       - '^docs(\(.+\))?:'
       - '^test(\(.+\))?:'
       - '^style(\(.+\))?:'
+      - '^ci(\(.+\))?:'
+      - '^chore(\(.+\))?:'
+      - '^refactor(\(.+\))?:'
       - '^Merge pull request'
 
 release:
