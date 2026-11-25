@@ -3,6 +3,7 @@ package exporter
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -68,24 +69,26 @@ func New(
 func (e *Exporter) write(ctx context.Context, messages []kafka.Message) (int, bool, error) {
 	written := len(messages)
 
-	switch err := e.writer.WriteMessages(ctx, messages...).(type) {
-	case nil:
+	err := e.writer.WriteMessages(ctx, messages...)
+	if err == nil {
 		return written, false, nil
-	case kafka.WriteErrors:
-		for _, werr := range err {
-			if werr != nil {
-				written--
-				// If the error is fatal, return immediately as
-				// the writer will not be able to send anything.
-				if isFatalError(werr) {
-					return 0, true, werr
-				}
-			}
-		}
-		return written, false, err
-	default:
+	}
+
+	var werrs kafka.WriteErrors
+	if !errors.As(err, &werrs) {
 		return 0, isFatalError(err), err
 	}
+	for _, werr := range werrs {
+		if werr != nil {
+			written--
+			// If the error is fatal, return immediately as
+			// the writer will not be able to send anything.
+			if isFatalError(werr) {
+				return 0, true, werr
+			}
+		}
+	}
+	return written, false, err
 }
 
 func (e *Exporter) export(ctx context.Context, messages []kafka.Message) error {

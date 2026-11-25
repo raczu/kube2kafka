@@ -19,6 +19,8 @@ KAFKA_NATIVE_VERSION ?= 4.3.2
 
 KAFKA_TEST_BROKER ?= localhost:9092
 
+TIMESTAMP := $(shell date "+%Y%m%d-%H%M%S")
+
 ##@ General
 
 # The targets behavior can be customized by setting the following variables:
@@ -37,11 +39,14 @@ help: ## Show this help message
 
 start: minikube kafka ## Start development environment
 
+minikube: LOG := /tmp/$(TIMESTAMP)-minikube-start.log
 minikube:
 	printf "\uea9c Starting Kubernetes cluster"
-	minikube start -p $(K8S_CLUSTER_NAME) --kubernetes-version=$(K8S_VERSION) --driver=docker >/tmp/$(shell date "+%Y%m%d-%H%M%S")-minikube-start.log 2>&1
+	minikube start -p $(K8S_CLUSTER_NAME) --kubernetes-version=$(K8S_VERSION) --driver=docker >$(LOG) 2>&1 \
+		|| { printf "\nFailed to start the Kubernetes cluster, see $(LOG)\n" >&2; exit 1; }
 	printf " \ueab2\n"
 
+kafka: LOG := /tmp/$(TIMESTAMP)-kafka-native-start.log
 kafka:
 	printf "\uea9c Starting kafka-native container"
 	docker run -d \
@@ -56,8 +61,17 @@ kafka:
 		-e KAFKA_CONTROLLER_QUORUM_VOTERS="1@localhost:9091" \
 		-e KAFKA_INTER_BROKER_LISTENER_NAME="DOCKER" \
 		-e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
-		apache/kafka-native:$(KAFKA_NATIVE_VERSION) >/tmp/$(shell date "+%Y%m%d-%H%M%S")-kafka-native-start.log 2>&1
-	printf " \ueab2\n"
+		apache/kafka-native:$(KAFKA_NATIVE_VERSION) >$(LOG) 2>&1 \
+		|| { printf "\nFailed to start kafka-native container, see $(LOG)\n" >&2; exit 1; }
+	for _ in $(shell seq 60); do \
+		if docker logs kafka 2>&1 | grep -q "Kafka Server started"; then \
+			printf " \ueab2\n"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	printf "\nKafka did not start within 60s, see docker logs kafka\n" >&2; \
+	exit 1
 
 stop: minikube-stop kafka-stop ## Stop development environment
 
@@ -68,21 +82,15 @@ minikube-stop:
 
 kafka-stop:
 	printf "\uea9c Stopping kafka-native container"
-	docker ps -q -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) | xargs -r docker stop >/dev/null 2>&1 || true
-	docker ps -aq -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) | xargs -r docker rm >/dev/null 2>&1 || true
+	docker rm -f kafka >/dev/null 2>&1 || true
 	printf " \ueab2\n"
 
 status: ## Show status of development environment
 	minikube status -p $(K8S_CLUSTER_NAME) || true
-	docker ps -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
+	docker ps -f name=^kafka$$ --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
 
-lint: golangci-lint tidy-lint ## Run linters
-
-golangci-lint:
-	golangci-lint run
-
-tidy-lint:
-	go mod tidy && git diff --exit-code go.mod go.sum
+lint: ## Run linters and other checks defined in prek.toml
+	prek run --all-files
 
 test: ## Run tests
 	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS)

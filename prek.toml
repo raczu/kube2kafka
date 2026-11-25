@@ -1,0 +1,45 @@
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace" },
+  { id = "end-of-file-fixer" },
+  { id = "check-yaml", args = [
+    "--allow-multiple-documents",
+  ] },
+  { id = "check-toml" },
+  { id = "check-merge-conflict" },
+  { id = "mixed-line-ending", args = [
+    "--fix=lf",
+  ] },
+]
+
+[[repos]]
+repo = "https://github.com/golangci/golangci-lint"
+rev = "25c5369a93aacb8cccea0d46e1569ca4a194564d" # v2.15.0
+hooks = [
+  { id = "golangci-lint-fmt" },
+  # The plain golangci-lint hook only lints changes since HEAD, so it checks nothing in CI.
+  { id = "golangci-lint-full" },
+  { id = "golangci-lint-config-verify" },
+]
+
+[[repos]]
+repo = "https://github.com/rhysd/actionlint"
+rev = "914e7df21a07ef503a81201c76d2b11c789d3fca" # v1.7.12
+hooks = [{ id = "actionlint" }]
+
+[[repos]]
+repo = "https://github.com/zizmorcore/zizmor-pre-commit"
+rev = "c7d31dc612dffdd4d3b2f2b88b9660d3ab057ee8" # v1.33.1
+hooks = [{ id = "zizmor" }]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "go-mod-tidy"
+name = "go mod tidy"
+language = "system"
+entry = "go mod tidy -diff"
+files = '(\.go|^go\.mod|^go\.sum)$'
+pass_filenames = false
