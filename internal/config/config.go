@@ -2,12 +2,14 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"time"
+
+	"gopkg.in/yaml.v3"
+
 	"github.com/raczu/kube2kafka/pkg/kube"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
 	"github.com/raczu/kube2kafka/pkg/processor"
-	"gopkg.in/yaml.v3"
-	"os"
-	"time"
 )
 
 type Config struct {

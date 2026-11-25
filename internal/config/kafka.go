@@ -3,10 +3,12 @@ package config
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/raczu/kube2kafka/pkg/exporter"
+	"os"
+
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl"
-	"os"
+
+	"github.com/raczu/kube2kafka/pkg/exporter"
 )
 
 type RawTLSData struct {

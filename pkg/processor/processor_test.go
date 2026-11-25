@@ -4,19 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
+	"sync"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/raczu/kube2kafka/pkg/kube"
-	"github.com/raczu/kube2kafka/pkg/kube/watcher"
-	log "github.com/raczu/kube2kafka/pkg/logger"
-	"github.com/raczu/kube2kafka/pkg/processor"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"reflect"
-	"sync"
-	"time"
+
+	"github.com/raczu/kube2kafka/pkg/kube"
+	"github.com/raczu/kube2kafka/pkg/kube/watcher"
+	log "github.com/raczu/kube2kafka/pkg/logger"
+	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
 var _ = Describe("Processor", func() {

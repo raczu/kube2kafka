@@ -3,10 +3,11 @@ package processor_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/raczu/kube2kafka/pkg/kube"
-	"github.com/raczu/kube2kafka/pkg/processor"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/raczu/kube2kafka/pkg/kube"
+	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
 var _ = Describe("Selector", func() {

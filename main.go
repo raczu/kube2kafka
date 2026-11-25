@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
+	"os/signal"
+
+	"go.uber.org/zap"
+
 	k2kconfig "github.com/raczu/kube2kafka/internal/config"
 	"github.com/raczu/kube2kafka/internal/manager"
 	"github.com/raczu/kube2kafka/pkg/kube"
 	log "github.com/raczu/kube2kafka/pkg/logger"
-	"go.uber.org/zap"
-	"os"
-	"os/signal"
 )
 
 func main() {

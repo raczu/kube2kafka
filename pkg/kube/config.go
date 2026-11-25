@@ -1,9 +1,10 @@
 package kube
 
 import (
+	"os"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
 )
 
 // GetKubeConfig returns a Kubernetes configuration based on the provided path.

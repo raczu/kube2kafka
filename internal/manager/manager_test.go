@@ -4,15 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"reflect"
+	"time"
+
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	k2kconfig "github.com/raczu/kube2kafka/internal/config"
-	"github.com/raczu/kube2kafka/internal/manager"
-	"github.com/raczu/kube2kafka/pkg/kube"
-	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
-	log "github.com/raczu/kube2kafka/pkg/logger"
-	"github.com/raczu/kube2kafka/pkg/processor"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -20,9 +18,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
-	"os"
-	"reflect"
-	"time"
+
+	k2kconfig "github.com/raczu/kube2kafka/internal/config"
+	"github.com/raczu/kube2kafka/internal/manager"
+	"github.com/raczu/kube2kafka/pkg/kube"
+	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
+	log "github.com/raczu/kube2kafka/pkg/logger"
+	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
 var _ = Describe("Manager", func() {

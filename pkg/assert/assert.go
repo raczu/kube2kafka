@@ -5,8 +5,10 @@ package assert
 
 import (
 	"fmt"
-	log "github.com/raczu/kube2kafka/pkg/logger"
+
 	"go.uber.org/zap"
+
+	log "github.com/raczu/kube2kafka/pkg/logger"
 )
 
 var logger = log.New(log.WithDevelopment())

@@ -1,8 +1,9 @@
 package kube
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // EnhancedEvent is an event enriched with the cluster name and option to

@@ -3,9 +3,10 @@ package processor
 import (
 	"bytes"
 	"fmt"
+	"text/template"
+
 	"github.com/raczu/kube2kafka/pkg/assert"
 	"github.com/raczu/kube2kafka/pkg/kube"
-	"text/template"
 )
 
 // Selector is used to select a specific field from the event.

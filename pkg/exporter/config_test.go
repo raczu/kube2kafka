@@ -3,10 +3,11 @@ package exporter_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/raczu/kube2kafka/pkg/exporter"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/compress"
 	"github.com/segmentio/kafka-go/sasl/plain"
+
+	"github.com/raczu/kube2kafka/pkg/exporter"
 )
 
 var _ = Describe("MapCodecString", func() {

@@ -1,10 +1,12 @@
 package watcher
 
 import (
-	"github.com/raczu/kube2kafka/pkg/kube"
+	"time"
+
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
-	"time"
+
+	"github.com/raczu/kube2kafka/pkg/kube"
 )
 
 func timeSinceOccurrence(event *corev1.Event) time.Duration {

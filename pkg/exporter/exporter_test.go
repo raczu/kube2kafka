@@ -3,16 +3,18 @@ package exporter_test
 import (
 	"bytes"
 	"context"
+	"os"
+	"time"
+
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
+
 	"github.com/raczu/kube2kafka/pkg/exporter"
 	log "github.com/raczu/kube2kafka/pkg/logger"
 	"github.com/raczu/kube2kafka/pkg/processor"
-	"github.com/segmentio/kafka-go"
-	"go.uber.org/zap"
-	"os"
-	"time"
 )
 
 var _ = Describe("Exporter", func() {

@@ -3,13 +3,15 @@ package processor
 import (
 	"context"
 	"encoding/json"
+	"time"
+
+	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
+
 	"github.com/raczu/kube2kafka/pkg/circular"
 	"github.com/raczu/kube2kafka/pkg/kube"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
 	log "github.com/raczu/kube2kafka/pkg/logger"
-	"github.com/segmentio/kafka-go"
-	"go.uber.org/zap"
-	"time"
 )
 
 const (
