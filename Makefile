@@ -76,13 +76,8 @@ status: ## Show status of development environment
 	minikube status -p $(K8S_CLUSTER_NAME) || true
 	docker ps -f name=kafka -f ancestor=apache/kafka-native:$(KAFKA_NATIVE_VERSION) --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
 
-lint: golangci-lint tidy-lint ## Run linters
-
-golangci-lint:
-	golangci-lint run
-
-tidy-lint:
-	go mod tidy && git diff --exit-code go.mod go.sum
+lint: ## Run linters and other checks defined in prek.toml
+	prek run --all-files
 
 test: ## Run tests
 	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS)
