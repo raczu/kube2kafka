@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"syscall"
 
 	"go.uber.org/zap"
 
@@ -73,7 +74,7 @@ func main() {
 		logger.Fatal("failed to set up manager", zap.Error(err))
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if err = mgr.Start(ctx); err != nil {
