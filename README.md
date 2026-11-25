@@ -3,6 +3,7 @@
 [![development][development badge]][development workflow]
 [![go Report Card][go report badge]][go report]
 [![coverage][coverage badge]][sonarqube]
+[![OpenSSF Scorecard][scorecard badge]][scorecard]
 
 kube2kafka is a simple tool for exporting k8s events to Kafka with support for filtering them using
 defined filters based on regular expressions and customizing their final structure using selectors
@@ -117,6 +118,8 @@ understand what's happening with the events.
 [go report badge]: https://goreportcard.com/badge/github.com/raczu/kube2kafka
 [sonarqube]: https://sonarcloud.io/summary/new_code?id=raczu_kube2kafka
 [coverage badge]: https://sonarcloud.io/api/project_badges/measure?project=raczu_kube2kafka&metric=coverage
+[scorecard]: https://scorecard.dev/viewer/?uri=github.com/raczu/kube2kafka
+[scorecard badge]: https://api.scorecard.dev/projects/github.com/raczu/kube2kafka/badge
 [kafka-go]: https://github.com/segmentio/kafka-go
 [kip-896]: https://cwiki.apache.org/confluence/display/KAFKA/KIP-896%3A+Remove+old+client+protocol+API+versions+in+Kafka+4.0
 [text template]: https://pkg.go.dev/text/template
