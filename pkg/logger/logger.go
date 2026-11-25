@@ -2,10 +2,11 @@ package logger
 
 import (
 	"flag"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"io"
 	"os"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func NewConsoleEncoder(opts ...EncoderConfigOption) zapcore.Encoder {

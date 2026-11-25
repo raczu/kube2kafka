@@ -4,13 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	log "github.com/raczu/kube2kafka/pkg/logger"
-	"github.com/raczu/kube2kafka/pkg/processor"
+	"net"
+	"time"
+
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl"
 	"go.uber.org/zap"
-	"net"
-	"time"
+
+	log "github.com/raczu/kube2kafka/pkg/logger"
+	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
 const (

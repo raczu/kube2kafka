@@ -3,15 +3,17 @@ package watcher
 import (
 	"context"
 	"fmt"
-	"github.com/raczu/kube2kafka/pkg/circular"
-	"github.com/raczu/kube2kafka/pkg/kube"
-	log "github.com/raczu/kube2kafka/pkg/logger"
+	"time"
+
 	"go.uber.org/zap"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"time"
+
+	"github.com/raczu/kube2kafka/pkg/circular"
+	"github.com/raczu/kube2kafka/pkg/kube"
+	log "github.com/raczu/kube2kafka/pkg/logger"
 )
 
 const (

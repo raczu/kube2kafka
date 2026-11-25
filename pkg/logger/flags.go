@@ -2,8 +2,9 @@ package logger
 
 import (
 	"fmt"
-	"go.uber.org/zap/zapcore"
 	"strings"
+
+	"go.uber.org/zap/zapcore"
 )
 
 type LogLevelValue struct {

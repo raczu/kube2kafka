@@ -1,8 +1,9 @@
 package circular
 
 import (
-	"github.com/raczu/kube2kafka/pkg/assert"
 	"sync"
+
+	"github.com/raczu/kube2kafka/pkg/assert"
 )
 
 // RingBuffer is a thread-safe circular structure, designed to store most recent data.

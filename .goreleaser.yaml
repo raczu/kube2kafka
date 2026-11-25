@@ -1,0 +1,101 @@
+version: 2
+
+project_name: kube2kafka
+
+builds:
+  - id: kube2kafka
+    main: .
+    binary: kube2kafka
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    # The version and commit are stamped by the Go toolchain from git (see main.go).
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - configs/config-example.yml
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --bundle=${signature}
+      - ${artifact}
+      - --yes
+    artifacts: checksum
+
+dockers_v2:
+  - id: kube2kafka
+    ids: [kube2kafka]
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - ghcr.io/raczu/kube2kafka
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.licenses: MIT
+    annotations:
+      org.opencontainers.image.description: Export Kubernetes events to Kafka
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: MIT
+
+docker_signs:
+  - cmd: cosign
+    args:
+      - sign
+      - ${artifact}@${digest}
+      - --yes
+
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Breaking changes
+      regexp: '^.*?\w+(\(.+\))?!:.+$'
+      order: 0
+    - title: Features
+      regexp: '^.*?feat(\(.+\))?:.+$'
+      order: 1
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))?:.+$'
+      order: 2
+    - title: Other changes
+      order: 999
+  filters:
+    exclude:
+      - '^docs(\(.+\))?:'
+      - '^test(\(.+\))?:'
+      - '^style(\(.+\))?:'
+      - '^Merge pull request'
+
+release:
+  prerelease: auto

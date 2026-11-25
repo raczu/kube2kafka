@@ -1,40 +1,61 @@
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
 
 output:
-  sort-results: true
+  sort-order:
+    - file
 
 linters:
-  disable-all: true
+  default: none
   enable:
+    - bodyclose
+    - copyloopvar
     - errcheck
-    - gosimple
     - govet
     - ineffassign
+    - misspell
+    - revive
     - staticcheck
     - unused
-    - revive
+    - usestdlibvars
 
-linters-settings:
-  govet:
-    enable:
-      - nilness
-      - reflectvaluecompare
-      - sortslice
-      - unusedwrite
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*go.uber.org/zap.Logger).Sync
 
-  errcheck:
-    exclude-functions:
-      - (*go.uber.org/zap.Logger).Sync
+    govet:
+      enable:
+        - nilness
+        - reflectvaluecompare
+        - sortslice
+        - unusedwrite
 
-  revive:
-    rules:
-      - name: empty-block
-        disabled: true
+    revive:
+      rules:
+        - name: empty-block
+          disabled: true
 
-      - name: line-length-limit
-        arguments: [100]
+        - name: line-length-limit
+          arguments: [100]
 
-      - name: cognitive-complexity
-        arguments: [15]
+        - name: cognitive-complexity
+          arguments: [15]
+
+  exclusions:
+    # Keeps v1 default behaviour: ignore unchecked errors from Close, os.Remove, etc.
+    presets:
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/raczu/kube2kafka

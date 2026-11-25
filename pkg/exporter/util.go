@@ -2,8 +2,10 @@ package exporter
 
 import (
 	"errors"
-	"github.com/raczu/kube2kafka/pkg/processor"
+
 	"github.com/segmentio/kafka-go"
+
+	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
 // tryReadUpTo tries to read n messages from the buffer. If there are fewer than n messages

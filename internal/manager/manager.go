@@ -4,14 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"sync"
+
+	"github.com/segmentio/kafka-go/sasl"
+	"go.uber.org/zap"
+	"k8s.io/client-go/rest"
+
 	k2kconfig "github.com/raczu/kube2kafka/internal/config"
 	"github.com/raczu/kube2kafka/pkg/exporter"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
 	"github.com/raczu/kube2kafka/pkg/processor"
-	"github.com/segmentio/kafka-go/sasl"
-	"go.uber.org/zap"
-	"k8s.io/client-go/rest"
-	"sync"
 )
 
 var (

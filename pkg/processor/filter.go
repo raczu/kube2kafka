@@ -1,9 +1,10 @@
 package processor
 
 import (
+	"regexp"
+
 	"github.com/raczu/kube2kafka/pkg/assert"
 	"github.com/raczu/kube2kafka/pkg/kube"
-	"regexp"
 )
 
 // Filter is used to filter events based on their attributes. All fields in the filter

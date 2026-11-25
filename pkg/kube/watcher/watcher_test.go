@@ -3,19 +3,21 @@ package watcher_test
 import (
 	"bytes"
 	"context"
+	"sync"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/raczu/kube2kafka/pkg/kube"
-	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
-	log "github.com/raczu/kube2kafka/pkg/logger"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
-	"sync"
-	"time"
+
+	"github.com/raczu/kube2kafka/pkg/kube"
+	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
+	log "github.com/raczu/kube2kafka/pkg/logger"
 )
 
 var _ = Describe("Watcher", func() {
@@ -28,7 +30,7 @@ var _ = Describe("Watcher", func() {
 	)
 
 	BeforeEach(func() {
-		clientset = fake.NewSimpleClientset()
+		clientset = fake.NewClientset()
 		kubewatcher.CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
 			return clientset
 		}

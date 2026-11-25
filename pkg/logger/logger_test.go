@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	log "github.com/raczu/kube2kafka/pkg/logger"
 	"go.uber.org/zap"
-	"time"
+
+	log "github.com/raczu/kube2kafka/pkg/logger"
 )
 
 var _ = Describe("Logger", func() {
