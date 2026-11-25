@@ -57,7 +57,6 @@ jobs:
           KAFKA_NATIVE_VERSION: ${{ matrix.kafka }}
         run: |
           make kafka KAFKA_NATIVE_VERSION="$KAFKA_NATIVE_VERSION"
-          timeout 60 bash -c 'until (exec 3<>/dev/tcp/localhost/9092) 2>/dev/null; do sleep 1; done'
 
       - name: test
         run: make test
