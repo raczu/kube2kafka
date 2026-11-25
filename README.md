@@ -53,6 +53,18 @@ buffer size is crucial for handling expected traffic &ndash; if the traffic is h
 processed or exported events may be overwritten when the buffer reaches its limit. A sample
 configuration file with descriptions of all options can be found in the `config/config-example.yml`.
 
+## Compatibility
+
+| Component  | Supported versions                                                    |
+|------------|-----------------------------------------------------------------------|
+| Go         | 1.26+ (release builds use the latest stable Go)                       |
+| Kubernetes | 1.35 - 1.37 (built with client-go v0.37, uses `core/v1` events)       |
+| Kafka      | 3.9 and 4.x (integration tests run against 3.9.2, 4.3.2 and 4.4.0)    |
+
+kube2kafka only produces messages using [kafka-go][kafka-go] `Writer`, which negotiates protocol
+versions with the broker, so it is not affected by the protocol versions removed in Kafka 4.0
+([KIP-896][kip-896]).
+
 ## Deployment
 
 Deploying kube2kafka is simple and requires to create namespace, either `kube2kafka` or custom one
@@ -105,6 +117,8 @@ understand what's happening with the events.
 [go report badge]: https://goreportcard.com/badge/github.com/raczu/kube2kafka
 [sonarqube]: https://sonarcloud.io/summary/new_code?id=raczu_kube2kafka
 [coverage badge]: https://sonarcloud.io/api/project_badges/measure?project=raczu_kube2kafka&metric=coverage
+[kafka-go]: https://github.com/segmentio/kafka-go
+[kip-896]: https://cwiki.apache.org/confluence/display/KAFKA/KIP-896%3A+Remove+old+client+protocol+API+versions+in+Kafka+4.0
 [text template]: https://pkg.go.dev/text/template
 [filter]: https://pkg.go.dev/github.com/raczu/kube2kafka/pkg/processor#Filter
 [event]: https://pkg.go.dev/k8s.io/api/core/v1#Event

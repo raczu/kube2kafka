@@ -15,7 +15,7 @@ endif
 
 K8S_VERSION ?= 1.37
 K8S_CLUSTER_NAME ?= dev.kube2kafka.local
-KAFKA_NATIVE_VERSION ?= 3.8.0
+KAFKA_NATIVE_VERSION ?= 4.3.2
 
 KAFKA_TEST_BROKER ?= localhost:9092
 
