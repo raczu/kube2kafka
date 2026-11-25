@@ -73,7 +73,7 @@ func (c *Config) GetCluster() kube.Cluster {
 }
 
 func Read(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path comes from the operator's -config flag
 	if err != nil {
 		return nil, err
 	}
