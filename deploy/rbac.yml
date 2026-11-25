@@ -9,7 +9,7 @@ kind: ClusterRole
 metadata:
     name: kube2kafka-role
 rules:
-    - apiGroups: ["*"]
+    - apiGroups: [""]
       resources: ["events"]
       verbs: ["get", "list", "watch"]
 ---
