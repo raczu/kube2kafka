@@ -35,7 +35,7 @@ var _ = Describe("Manager", func() {
 
 	BeforeEach(func() {
 		// Monkey patch the kube client creation to return the fake clientset.
-		clientset = fake.NewSimpleClientset()
+		clientset = fake.NewClientset()
 		kubewatcher.CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
 			return clientset
 		}
@@ -123,7 +123,10 @@ var _ = Describe("Manager", func() {
 				},
 			}
 
-			_, err := clientset.CoreV1().
+			// The fake clientset populates server-side fields (e.g. managedFields) on create,
+			// so keep the stored object as it is the one observed by the watcher.
+			var err error
+			event, err = clientset.CoreV1().
 				Events(config.TargetNamespace).
 				Create(context.TODO(), event, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())

@@ -13,7 +13,7 @@ else
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) -v -p
 endif
 
-K8S_VERSION ?= 1.30
+K8S_VERSION ?= 1.37
 K8S_CLUSTER_NAME ?= dev.kube2kafka.local
 KAFKA_NATIVE_VERSION ?= 3.8.0
 
@@ -85,7 +85,7 @@ tidy-lint:
 	go mod tidy && git diff --exit-code go.mod go.sum
 
 test: ## Run tests
-	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) ginkgo $(GINKGO_FLAGS)
+	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS)
 
 ##@ Build
 

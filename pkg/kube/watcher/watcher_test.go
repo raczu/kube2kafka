@@ -28,7 +28,7 @@ var _ = Describe("Watcher", func() {
 	)
 
 	BeforeEach(func() {
-		clientset = fake.NewSimpleClientset()
+		clientset = fake.NewClientset()
 		kubewatcher.CreateKubeClient = func(config *rest.Config) kubernetes.Interface {
 			return clientset
 		}
