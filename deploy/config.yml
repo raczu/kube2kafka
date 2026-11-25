@@ -1,9 +1,9 @@
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
   name: kube2kafka-config
   namespace: kube2kafka
-data:
+stringData:
   config.yml: |
     clusterName: k8s-cluster
     kafka:

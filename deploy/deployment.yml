@@ -16,6 +16,8 @@ spec:
       serviceAccountName: kube2kafka-sa
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: kube2kafka
           image: ghcr.io/raczu/kube2kafka:0.2.0
@@ -28,8 +30,13 @@ spec:
             limits:
               memory: "96Mi"
               cpu: "150m"
-              ephemeral-storage: "2Gi"
+              ephemeral-storage: "128Mi"
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           args:
             - "-config=/home/nonroot/.kube2kafka/config.yml"
           volumeMounts:
@@ -37,8 +44,8 @@ spec:
               mountPath: /home/nonroot/.kube2kafka
       volumes:
         - name: config
-          configMap:
-            name: kube2kafka-config
+          secret:
+            secretName: kube2kafka-config
             items:
               - key: config.yml
                 path: config.yml
