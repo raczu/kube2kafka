@@ -1,7 +1,6 @@
 # kube2kafka
 
 [![development][development badge]][development workflow]
-[![go Report Card][go report badge]][go report]
 [![coverage][coverage badge]][sonarqube]
 [![OpenSSF Scorecard][scorecard badge]][scorecard]
 
@@ -114,8 +113,6 @@ understand what's happening with the events.
 
 [development workflow]: https://github.com/raczu/kube2kafka/actions/workflows/development.yml
 [development badge]: https://github.com/raczu/kube2kafka/actions/workflows/development.yml/badge.svg?event=push
-[go report]: https://goreportcard.com/report/github.com/raczu/kube2kafka
-[go report badge]: https://goreportcard.com/badge/github.com/raczu/kube2kafka
 [sonarqube]: https://sonarcloud.io/summary/new_code?id=raczu_kube2kafka
 [coverage badge]: https://sonarcloud.io/api/project_badges/measure?project=raczu_kube2kafka&metric=coverage
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/raczu/kube2kafka
