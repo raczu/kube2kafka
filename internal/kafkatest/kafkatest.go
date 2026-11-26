@@ -1,4 +1,5 @@
-// Package kafkatest provides helpers for tests that need a real Kafka broker.
+// Package kafkatest provides helpers for Kafka-related tests: a real test broker and
+// test TLS certificates.
 package kafkatest
 
 import (
