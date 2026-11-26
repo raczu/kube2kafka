@@ -108,7 +108,7 @@ test-integration: ## Run integration tests (needs Kafka)
 
 ##@ Build
 
-GIT_COMMIT = $(shell git rev-parse --short HEAD)
+VERSION = $(shell git describe --tags --always --dirty)
 
-docker-build: ## Build docker image with the current git commit
-	docker build -t kube2kafka:$(GIT_COMMIT) .
+docker-build: ## Build docker image tagged with the git version (marks uncommitted changes)
+	docker build -t kube2kafka:$(VERSION) .
