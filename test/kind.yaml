@@ -1,0 +1,3 @@
+# The node image is passed by the Makefile (--image) from K8S_VERSION.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4

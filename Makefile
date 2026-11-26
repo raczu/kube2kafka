@@ -13,7 +13,8 @@ else
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) -v -p
 endif
 
-K8S_VERSION ?= 1.37
+# A kindest/node image must exist for this version; kind publishes full patch versions only.
+K8S_VERSION ?= 1.37.0
 K8S_CLUSTER_NAME ?= dev.kube2kafka.local
 KAFKA_NATIVE_VERSION ?= 4.3.2
 
@@ -39,12 +40,13 @@ help: ## Show this help message
 
 ##@ Development
 
-start: minikube kafka ## Start development environment
+start: kind kafka ## Start development environment
 
-minikube: LOG := /tmp/$(TIMESTAMP)-minikube-start.log
-minikube:
+kind: LOG := /tmp/$(TIMESTAMP)-kind-create.log
+kind:
 	printf "→ Starting Kubernetes cluster"
-	minikube start -p $(K8S_CLUSTER_NAME) --kubernetes-version=$(K8S_VERSION) --driver=docker >$(LOG) 2>&1 \
+	go tool kind create cluster --name=$(K8S_CLUSTER_NAME) --config=test/kind.yaml \
+		--image=kindest/node:v$(K8S_VERSION) --wait=120s >$(LOG) 2>&1 \
 		|| { printf "\nFailed to start the Kubernetes cluster, see $(LOG)\n" >&2; exit 1; }
 	printf " ✓\n"
 
@@ -75,11 +77,11 @@ kafka:
 	printf "\nKafka did not start within 60s, see docker logs kafka\n" >&2; \
 	exit 1
 
-stop: minikube-stop kafka-stop ## Stop development environment
+stop: kind-stop kafka-stop ## Stop development environment
 
-minikube-stop:
-	printf "→ Stopping $(K8S_CLUSTER_NAME) cluster"
-	minikube stop -p $(K8S_CLUSTER_NAME) >/dev/null 2>&1 || true
+kind-stop:
+	printf "→ Deleting $(K8S_CLUSTER_NAME) cluster"
+	go tool kind delete cluster --name=$(K8S_CLUSTER_NAME) >/dev/null 2>&1 || true
 	printf " ✓\n"
 
 kafka-stop:
@@ -88,12 +90,13 @@ kafka-stop:
 	printf " ✓\n"
 
 status: ## Show status of development environment
-	minikube status -p $(K8S_CLUSTER_NAME) || true
-	docker ps -f name=^kafka$$ --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
+	docker ps -f name=^kafka$$ -f name=^$(K8S_CLUSTER_NAME)-control-plane$$ --format "table {{ .ID }}\t{{ .Names }}\t{{ .Status }}\t{{ .Ports }}\t{{ .CreatedAt }}"
 
 lint: ## Run linters and other checks defined in prek.toml
 	prek run --all-files
 
+# The test/ directory would otherwise make "test" look up to date.
+.PHONY: test
 test: ## Run unit and integration tests (needs Kafka)
 	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS) --label-filter='!e2e'
 
