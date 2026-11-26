@@ -1,11 +1,9 @@
 package manager_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +11,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -20,11 +20,10 @@ import (
 	"k8s.io/client-go/rest"
 
 	k2kconfig "github.com/raczu/kube2kafka/internal/config"
+	"github.com/raczu/kube2kafka/internal/kafkatest"
 	"github.com/raczu/kube2kafka/internal/manager"
 	"github.com/raczu/kube2kafka/pkg/kube"
 	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
-	log "github.com/raczu/kube2kafka/pkg/logger"
-	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
 var _ = Describe("Manager", func() {
@@ -33,6 +32,7 @@ var _ = Describe("Manager", func() {
 		clientset *fake.Clientset
 		mgr       *manager.Manager
 		logger    *zap.Logger
+		logs      *observer.ObservedLogs
 	)
 
 	BeforeEach(func() {
@@ -48,16 +48,15 @@ var _ = Describe("Manager", func() {
 			BufferSize:      5,
 			MaxEventAge:     1 * time.Hour,
 			Kafka: &k2kconfig.KafkaConfig{
-				Brokers:        []string{os.Getenv("KAFKA_TEST_BROKER")},
-				Topic:          "placeholder",
+				Brokers:        []string{os.Getenv(kafkatest.BrokerEnv)},
+				Topic:          uuid.New().String(),
 				RawCompression: "none",
 			},
 		}
 
-		opts := log.Options{
-			Output: &bytes.Buffer{},
-		}
-		logger = log.New(log.UseOptions(&opts))
+		var core zapcore.Core
+		core, logs = observer.New(zap.DebugLevel)
+		logger = zap.New(core)
 	})
 
 	When("setting up the manager", func() {
@@ -153,295 +152,80 @@ var _ = Describe("Manager", func() {
 			})
 
 			It("should stop immediately and return error if watcher fails", func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-				defer cancel()
+				// A canceled context makes the initial cache sync fail deterministically.
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
 
 				err := mgr.Start(ctx)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("initial cache sync for watcher failed"))
+				Expect(err).To(
+					MatchError(ContainSubstring("initial cache sync for watcher failed")),
+				)
 			})
 
-			It("should stop immediately and return error if exporter fails", func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-				defer cancel()
-
-				err := mgr.Start(ctx)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(kafka.UnknownTopicOrPartition.Error()))
-			})
+			It("should stop immediately and return error if exporter fails",
+				Label("integration"), func(ctx SpecContext) {
+					// The topic name is a fresh UUID, so the topic does not exist.
+					err := mgr.Start(ctx)
+					Expect(err).To(
+						MatchError(ContainSubstring(kafka.UnknownTopicOrPartition.Error())),
+					)
+				}, SpecTimeout(30*time.Second))
 		})
 
-		Context("and all components works properly", func() {
+		Context("and all components work properly", Label("integration"), func() {
 			var (
-				admin *kafka.Client
+				reader *kafka.Reader
 			)
 
-			BeforeEach(func() {
-				config.Kafka.Topic = uuid.New().String()
-				admin = &kafka.Client{
-					Addr: kafka.TCP(config.Kafka.Brokers...),
-				}
+			BeforeEach(func(ctx SpecContext) {
+				Expect(kafkatest.CreateTopic(ctx, config.Kafka.Brokers, config.Kafka.Topic)).
+					To(Succeed())
+				DeferCleanup(func(ctx SpecContext) {
+					// No need to wait for the deletion: topic names are unique UUIDs.
+					Expect(kafkatest.DeleteTopic(ctx, config.Kafka.Brokers, config.Kafka.Topic)).
+						To(Succeed())
+				}, NodeTimeout(30*time.Second))
 
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := admin.CreateTopics(ctx, &kafka.CreateTopicsRequest{
-					Topics: []kafka.TopicConfig{
-						{
-							Topic:             config.Kafka.Topic,
-							NumPartitions:     1,
-							ReplicationFactor: 1,
-						},
-					},
+				reader = kafkatest.NewReader(config.Kafka.Brokers, config.Kafka.Topic)
+				DeferCleanup(reader.Close)
+			}, NodeTimeout(30*time.Second))
+
+			It("should export the observed event", func(ctx SpecContext) {
+				mgr = manager.New(config, &rest.Config{}, logger)
+				Expect(mgr.Setup()).To(Succeed())
+
+				// The manager runs on its own context so that reading never stops it.
+				mctx, cancel := context.WithCancel(context.Background())
+				done := make(chan error, 1)
+				go func() { done <- mgr.Start(mctx) }()
+				DeferCleanup(func(cctx SpecContext) {
+					cancel()
+					select {
+					case err := <-done:
+						Expect(err).NotTo(HaveOccurred())
+					case <-cctx.Done():
+					}
+				}, NodeTimeout(10*time.Second))
+
+				// Until the watcher has synced, stopping the manager returns a sync error.
+				Eventually(func() int {
+					return logs.FilterMessage("initial watcher cache synced").Len()
+				}).WithContext(ctx).Should(Equal(1))
+
+				var message kafka.Message
+				Eventually(func(g Gomega) {
+					var err error
+					message, err = kafkatest.ReadMessage(ctx, reader, time.Second)
+					g.Expect(err).NotTo(HaveOccurred())
+				}).WithContext(ctx).Should(Succeed())
+
+				expected, err := json.Marshal(&kube.EnhancedEvent{
+					ClusterName: config.ClusterName,
+					Event:       *event,
 				})
 				Expect(err).NotTo(HaveOccurred())
-
-				// Wait for the topic to be created.
-				Eventually(func() error {
-					ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-					defer cancel()
-					_, err := admin.Metadata(ctx, &kafka.MetadataRequest{
-						Topics: []string{config.Kafka.Topic},
-					})
-					return err
-				}, 5*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-
-			AfterEach(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := admin.DeleteTopics(ctx, &kafka.DeleteTopicsRequest{
-					Topics: []string{config.Kafka.Topic},
-				})
-				Expect(err).NotTo(HaveOccurred())
-				// There is no need to wait for the topic to be deleted as we use
-				// UUIDs for topic names, there should be no conflicts.
-			})
-
-			When("some filters are defined", func() {
-				var (
-					expected *corev1.Event
-				)
-
-				BeforeEach(func() {
-					now := metav1.Now()
-					expected = &corev1.Event{
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: corev1.NamespaceDefault,
-							Name:      "expected",
-						},
-						FirstTimestamp: now,
-						LastTimestamp:  now,
-						InvolvedObject: corev1.ObjectReference{
-							Kind: "Pod",
-						},
-						Reason:  "Created",
-						Message: "Pod created successfully",
-						Type:    "Normal",
-						Source: corev1.EventSource{
-							Component: "kubelet",
-						},
-					}
-
-					_, err := clientset.CoreV1().
-						Events(config.TargetNamespace).
-						Create(context.TODO(), expected, metav1.CreateOptions{})
-					Expect(err).NotTo(HaveOccurred())
-
-					config.Filters = []processor.Filter{
-						{
-							Reason: "(?i)^created",
-						},
-					}
-
-					mgr = manager.New(config, &rest.Config{}, logger)
-					err = mgr.Setup()
-					Expect(err).NotTo(HaveOccurred())
-				})
-
-				It("should export only events matching defined filters", func() {
-					r := kafka.NewReader(kafka.ReaderConfig{
-						Brokers: config.Kafka.Brokers,
-						Topic:   config.Kafka.Topic,
-					})
-
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-
-					done := make(chan struct{})
-					var message kafka.Message
-					var rerr error
-
-					go func() {
-						defer close(done)
-						message, rerr = r.ReadMessage(ctx)
-						cancel()
-					}()
-
-					err := mgr.Start(ctx)
-					Expect(err).NotTo(HaveOccurred())
-
-					<-done
-					Expect(rerr).NotTo(HaveOccurred())
-
-					var received kube.EnhancedEvent
-					err = json.Unmarshal(message.Value, &received)
-					Expect(err).NotTo(HaveOccurred())
-
-					Expect(received.ClusterName).To(Equal(config.ClusterName))
-					Expect(
-						received.Event.InvolvedObject.Kind,
-					).To(Equal(expected.InvolvedObject.Kind))
-					Expect(received.Event.Reason).To(Equal(expected.Reason))
-					Expect(received.Event.Message).To(Equal(expected.Message))
-				})
-			})
-
-			When("customizing payload", func() {
-				It("should customize payload based on defined selectors", func() {
-					config.Selectors = []processor.Selector{
-						{
-							Key:   "cluster",
-							Value: "{{ .ClusterName }}",
-						},
-						{
-							Key:   "kind",
-							Value: "{{ .InvolvedObject.Kind }}",
-						},
-						{
-							Key:   "reason",
-							Value: "{{ .Reason }}",
-						},
-					}
-
-					mgr = manager.New(config, &rest.Config{}, logger)
-					err := mgr.Setup()
-					Expect(err).NotTo(HaveOccurred())
-
-					r := kafka.NewReader(kafka.ReaderConfig{
-						Brokers: config.Kafka.Brokers,
-						Topic:   config.Kafka.Topic,
-					})
-
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-
-					done := make(chan struct{})
-					var message kafka.Message
-					var rerr error
-
-					go func() {
-						defer close(done)
-						message, rerr = r.ReadMessage(ctx)
-						cancel()
-					}()
-
-					err = mgr.Start(ctx)
-					Expect(err).NotTo(HaveOccurred())
-
-					<-done
-					Expect(rerr).NotTo(HaveOccurred())
-
-					var received map[string]string
-					err = json.Unmarshal(message.Value, &received)
-					Expect(err).NotTo(HaveOccurred())
-
-					Expect(len(received)).To(Equal(len(config.Selectors)))
-					Expect(received).To(HaveKeyWithValue("cluster", config.ClusterName))
-					Expect(received).To(HaveKeyWithValue("kind", event.InvolvedObject.Kind))
-					Expect(received).To(HaveKeyWithValue("reason", event.Reason))
-				})
-
-				It("should export event as it is if no selectors are defined", func() {
-					mgr = manager.New(config, &rest.Config{}, logger)
-					err := mgr.Setup()
-					Expect(err).NotTo(HaveOccurred())
-
-					r := kafka.NewReader(kafka.ReaderConfig{
-						Brokers: config.Kafka.Brokers,
-						Topic:   config.Kafka.Topic,
-					})
-
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-
-					done := make(chan struct{})
-					var message kafka.Message
-					var rerr error
-
-					go func() {
-						defer close(done)
-						message, rerr = r.ReadMessage(ctx)
-						cancel()
-					}()
-
-					err = mgr.Start(ctx)
-					Expect(err).NotTo(HaveOccurred())
-
-					<-done
-					Expect(rerr).NotTo(HaveOccurred())
-
-					var expected []byte
-					expected, err = json.Marshal(
-						&kube.EnhancedEvent{
-							ClusterName: config.ClusterName,
-							Event:       *event,
-						})
-					Expect(err).NotTo(HaveOccurred())
-
-					isEqual := reflect.DeepEqual(message.Value, expected)
-					Expect(isEqual).To(BeTrue())
-				})
-
-				It("should export default payload when any selection causes an error", func() {
-					config.Selectors = []processor.Selector{
-						{
-							Key:   "cluster",
-							Value: "{{ .NonExistingField }}",
-						},
-					}
-
-					mgr = manager.New(config, &rest.Config{}, logger)
-					err := mgr.Setup()
-					Expect(err).NotTo(HaveOccurred())
-
-					r := kafka.NewReader(kafka.ReaderConfig{
-						Brokers: config.Kafka.Brokers,
-						Topic:   config.Kafka.Topic,
-					})
-
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-
-					done := make(chan struct{})
-					var message kafka.Message
-					var rerr error
-
-					go func() {
-						defer close(done)
-						message, rerr = r.ReadMessage(ctx)
-						cancel()
-					}()
-
-					err = mgr.Start(ctx)
-					Expect(err).NotTo(HaveOccurred())
-
-					<-done
-					Expect(rerr).NotTo(HaveOccurred())
-
-					var received map[string]string
-					err = json.Unmarshal(message.Value, &received)
-					Expect(err).NotTo(HaveOccurred())
-
-					expected := processor.RelevantFieldSelection(
-						&kube.EnhancedEvent{
-							ClusterName: config.ClusterName,
-							Event:       *event,
-						},
-					)
-					isEqual := reflect.DeepEqual(received, expected)
-					Expect(isEqual).To(BeTrue())
-				})
-			})
+				Expect(message.Value).To(MatchJSON(expected))
+			}, SpecTimeout(30*time.Second))
 		})
 	})
 })

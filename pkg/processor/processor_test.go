@@ -1,7 +1,6 @@
 package processor_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -11,13 +10,14 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/raczu/kube2kafka/pkg/kube"
 	"github.com/raczu/kube2kafka/pkg/kube/watcher"
-	log "github.com/raczu/kube2kafka/pkg/logger"
 	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
@@ -30,7 +30,7 @@ var _ = Describe("Processor", func() {
 		ctx    context.Context
 		cancel context.CancelFunc
 		wg     sync.WaitGroup
-		buffer *bytes.Buffer
+		logs   *observer.ObservedLogs
 	)
 
 	BeforeEach(func() {
@@ -54,11 +54,9 @@ var _ = Describe("Processor", func() {
 			ClusterName: "dev.kube2kafka.local",
 		}
 
-		buffer = &bytes.Buffer{}
-		opts := log.Options{
-			Output: buffer,
-		}
-		logger = log.New(log.UseOptions(&opts))
+		var core zapcore.Core
+		core, logs = observer.New(zap.DebugLevel)
+		logger = zap.New(core)
 	})
 
 	When("processing an event", func() {
@@ -197,9 +195,9 @@ var _ = Describe("Processor", func() {
 					return proc.GetBuffer().Size()
 				}, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
 
-				Expect(
-					buffer.String(),
-				).To(ContainSubstring("error occurred while selecting fields from the event"))
+				warnings := logs.FilterLevelExact(zap.WarnLevel).
+					FilterMessageSnippet("error occurred while selecting fields from the event")
+				Expect(warnings.Len()).To(Equal(1))
 			})
 
 			It("should provide default payload when any selection causes an error", func() {

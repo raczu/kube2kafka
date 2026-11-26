@@ -27,13 +27,15 @@ TIMESTAMP := $(shell date "+%Y%m%d-%H%M%S")
 #
 # * Use VERBOSE=1 to enable verbose mode, e.g. make VERBOSE=1 test.
 # * Use CI=1 to enable CI mode, e.g. make CI=1 test.
-# * Use KAFKA_TEST_BROKER=<broker> to set the broker for tests (required for tests), e.g.
-#   make KAFKA_TEST_BROKER=localhost:9092 test.
+# * Use KAFKA_TEST_BROKER=<broker> to set the broker for integration tests (default:
+#   localhost:9092, the "make kafka" container), e.g. make KAFKA_TEST_BROKER=host:9092 test.
+#   Integration suites fail fast if the broker is unset or unreachable; "make test-unit"
+#   needs no broker.
 
 all: help
 
 help: ## Show this help message
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
 
@@ -92,8 +94,14 @@ status: ## Show status of development environment
 lint: ## Run linters and other checks defined in prek.toml
 	prek run --all-files
 
-test: ## Run tests
-	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS)
+test: ## Run unit and integration tests (needs Kafka)
+	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS) --label-filter='!e2e'
+
+test-unit: ## Run unit tests (no external dependencies)
+	go tool ginkgo $(GINKGO_FLAGS) --label-filter='!integration && !e2e'
+
+test-integration: ## Run integration tests (needs Kafka)
+	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS) --label-filter='integration'
 
 ##@ Build
 
