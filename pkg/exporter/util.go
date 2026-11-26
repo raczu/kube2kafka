@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"crypto/tls"
 	"errors"
 
 	"github.com/segmentio/kafka-go"
@@ -26,7 +27,15 @@ func tryReadUpTo(buffer *processor.KafkaMessageBuffer, n int) []kafka.Message {
 // isFatalError checks if the provided error is any of the Kafka fatal errors.
 // Fatal errors are those that should stop the exporter. They are related to the
 // misconfiguration of the Kafka cluster or the exporter itself.
+//
+// A rejected broker certificate is fatal because certificates are read only at startup,
+// so retrying can never recover. A TLS alert from the broker (e.g. it rejects our client
+// certificate) is not covered: crypto/tls reports received alerts with an unexported
+// type, so they cannot be matched without relying on error text.
 func isFatalError(err error) bool {
+	if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
+		return true
+	}
 	return errors.Is(err, kafka.UnknownTopicOrPartition) ||
 		errors.Is(err, kafka.UnsupportedSASLMechanism) ||
 		errors.Is(err, kafka.IllegalSASLState) ||
