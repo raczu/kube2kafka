@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../deploy
+secretGenerator:
+  - name: kube2kafka-config
+    namespace: kube2kafka
+    behavior: replace
+    files:
+      - config.yml
+images:
+  - name: ghcr.io/raczu/kube2kafka
+    newName: kube2kafka
+    newTag: e2e
