@@ -33,6 +33,8 @@ kafka:
       - "broker:9093"
       - "broker:9094"
   compression: "gzip"  # one of none, gzip, snappy, lz4 or zstd
+  # To enable TLS with the system CAs, write "tls: {}". An empty "tls:" with no value
+  # means no TLS.
   tls:
     cacert: "/path/to/ca.crt"
     cert: "/path/to/client.crt"

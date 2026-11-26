@@ -50,7 +50,7 @@ func (r *RawTLSData) Build() (*tls.Config, error) {
 type RawSASLData struct {
 	Username  string `yaml:"username"`
 	Password  string `yaml:"password"`
-	Mechanism string `yaml:"mechanism" default:"plain"`
+	Mechanism string `yaml:"mechanism"`
 }
 
 func (r *RawSASLData) Validate() error {
@@ -75,7 +75,7 @@ func (r *RawSASLData) Build() (sasl.Mechanism, error) {
 type KafkaConfig struct {
 	Brokers        []string     `yaml:"brokers"`
 	Topic          string       `yaml:"topic"`
-	RawCompression string       `yaml:"compression" default:"none"`
+	RawCompression string       `yaml:"compression"`
 	RawTLS         *RawTLSData  `yaml:"tls"`
 	RawSASL        *RawSASLData `yaml:"sasl"`
 }
