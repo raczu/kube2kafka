@@ -20,7 +20,7 @@ var _ = Describe("Buffer", func() {
 		})
 
 		It("should create a new empty ring buffer", func() {
-			Expect(buffer).ToNot(BeNil())
+			Expect(buffer).NotTo(BeNil())
 			Expect(buffer.Size()).To(Equal(0))
 		})
 	})

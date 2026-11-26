@@ -3,9 +3,6 @@ package processor_test
 import (
 	"context"
 	"encoding/json"
-	"reflect"
-	"sync"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,15 +18,30 @@ import (
 	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
+// processInBackground runs proc on its own context until the spec ends.
+func processInBackground(proc *processor.Processor) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		proc.Process(ctx)
+	}()
+
+	DeferCleanup(func(cctx SpecContext) {
+		cancel()
+		select {
+		case <-done:
+		case <-cctx.Done():
+		}
+	}, NodeTimeout(cleanupTimeout))
+}
+
 var _ = Describe("Processor", func() {
 	var (
 		source *watcher.EventBuffer
 		proc   *processor.Processor
 		logger *zap.Logger
 		event  *kube.EnhancedEvent
-		ctx    context.Context
-		cancel context.CancelFunc
-		wg     sync.WaitGroup
 		logs   *observer.ObservedLogs
 	)
 
@@ -59,18 +71,17 @@ var _ = Describe("Processor", func() {
 		logger = zap.New(core)
 	})
 
+	outputSize := func() int {
+		return proc.GetBuffer().Size()
+	}
+
 	When("processing an event", func() {
 		BeforeEach(func() {
-			proc = processor.New(source, processor.WithLogger(logger))
 			source.Write(event)
 		})
 
-		AfterEach(func() {
-			wg.Wait()
-		})
-
 		Context("and there are some filters", func() {
-			It("should filter out the event if no filter matches", func() {
+			It("should filter out the event if no filter matches", func(ctx SpecContext) {
 				filters := []processor.Filter{
 					{
 						Kind: "ReplicaSet",
@@ -82,49 +93,37 @@ var _ = Describe("Processor", func() {
 					processor.WithFilters(filters),
 				)
 
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
+				processInBackground(proc)
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					proc.Process(ctx)
-				}()
+				// Once the event left the source, the processor has made its decision.
+				Eventually(source.Size).WithContext(ctx).Should(Equal(0))
+				Consistently(outputSize, quietPeriod).Should(Equal(0))
+			}, SpecTimeout(specTimeout))
 
-				Consistently(func() int {
-					return proc.GetBuffer().Size()
-				}, 1*time.Second, 100*time.Millisecond).Should(Equal(0))
-			})
+			It(
+				"should write the event to the output buffer if any filter matches",
+				func(ctx SpecContext) {
+					filters := []processor.Filter{
+						{
+							Kind: "Pod",
+						},
+					}
+					proc = processor.New(
+						source,
+						processor.WithLogger(logger),
+						processor.WithFilters(filters),
+					)
 
-			It("should write the event to the output buffer if any filter matches", func() {
-				filters := []processor.Filter{
-					{
-						Kind: "Pod",
-					},
-				}
-				proc = processor.New(
-					source,
-					processor.WithLogger(logger),
-					processor.WithFilters(filters),
-				)
+					processInBackground(proc)
 
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
-
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					proc.Process(ctx)
-				}()
-
-				Eventually(func() int {
-					return proc.GetBuffer().Size()
-				}, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
-			})
+					Eventually(outputSize).WithContext(ctx).Should(Equal(1))
+				},
+				SpecTimeout(specTimeout),
+			)
 		})
 
 		Context("and there are some selectors", func() {
-			It("should customize the event payload based on the selectors", func() {
+			It("should customize the event payload based on the selectors", func(ctx SpecContext) {
 				selectors := []processor.Selector{
 					{
 						Key:   "cluster",
@@ -141,18 +140,9 @@ var _ = Describe("Processor", func() {
 					processor.WithSelectors(selectors),
 				)
 
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
+				processInBackground(proc)
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					proc.Process(ctx)
-				}()
-
-				Eventually(func() int {
-					return proc.GetBuffer().Size()
-				}, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
+				Eventually(outputSize).WithContext(ctx).Should(Equal(1))
 
 				msg, _ := proc.GetBuffer().Read()
 				Expect(msg.Key).To(Equal([]byte(event.UID)))
@@ -163,9 +153,9 @@ var _ = Describe("Processor", func() {
 
 				Expect(payload).To(HaveKeyWithValue("cluster", event.ClusterName))
 				Expect(payload).To(HaveKeyWithValue("kind", event.InvolvedObject.Kind))
-			})
+			}, SpecTimeout(specTimeout))
 
-			It("should log warning when any selection causes an error", func() {
+			It("should log warning when any selection causes an error", func(ctx SpecContext) {
 				selectors := []processor.Selector{
 					{
 						Key:   "cluster",
@@ -182,85 +172,61 @@ var _ = Describe("Processor", func() {
 					processor.WithSelectors(selectors),
 				)
 
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
+				processInBackground(proc)
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					proc.Process(ctx)
-				}()
-
-				Eventually(func() int {
-					return proc.GetBuffer().Size()
-				}, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
+				Eventually(outputSize).WithContext(ctx).Should(Equal(1))
 
 				warnings := logs.FilterLevelExact(zap.WarnLevel).
 					FilterMessageSnippet("error occurred while selecting fields from the event")
 				Expect(warnings.Len()).To(Equal(1))
-			})
+			}, SpecTimeout(specTimeout))
 
-			It("should provide default payload when any selection causes an error", func() {
-				selectors := []processor.Selector{
-					{
-						Key:   "cluster",
-						Value: "{{ .ClusterName }}",
-					},
-					{
-						Key:   "dummy",
-						Value: "{{ .NonExistingField }}",
-					},
-				}
-				proc = processor.New(
-					source,
-					processor.WithLogger(logger),
-					processor.WithSelectors(selectors),
-				)
+			It(
+				"should provide default payload when any selection causes an error",
+				func(ctx SpecContext) {
+					selectors := []processor.Selector{
+						{
+							Key:   "cluster",
+							Value: "{{ .ClusterName }}",
+						},
+						{
+							Key:   "dummy",
+							Value: "{{ .NonExistingField }}",
+						},
+					}
+					proc = processor.New(
+						source,
+						processor.WithLogger(logger),
+						processor.WithSelectors(selectors),
+					)
 
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
+					processInBackground(proc)
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					proc.Process(ctx)
-				}()
+					Eventually(outputSize).WithContext(ctx).Should(Equal(1))
 
-				Eventually(func() int {
-					return proc.GetBuffer().Size()
-				}, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
+					msg, _ := proc.GetBuffer().Read()
+					Expect(msg.Key).To(Equal([]byte(event.UID)))
 
-				msg, _ := proc.GetBuffer().Read()
-				Expect(msg.Key).To(Equal([]byte(event.UID)))
+					var payload map[string]string
+					err := json.Unmarshal(msg.Value, &payload)
+					Expect(err).NotTo(HaveOccurred())
 
-				var payload map[string]string
-				err := json.Unmarshal(msg.Value, &payload)
-				Expect(err).NotTo(HaveOccurred())
-
-				isEqual := reflect.DeepEqual(payload, processor.RelevantFieldSelection(event))
-				Expect(isEqual).To(BeTrue())
-			})
+					Expect(payload).To(Equal(processor.RelevantFieldSelection(event)))
+				},
+				SpecTimeout(specTimeout),
+			)
 		})
 
 		Context("and selectors are not provided", func() {
-			It("should write the event to the output buffer as is", func() {
+			It("should write the event to the output buffer as is", func(ctx SpecContext) {
 				proc = processor.New(
 					source,
 					processor.WithLogger(logger),
 				)
 
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
+				processInBackground(proc)
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					proc.Process(ctx)
-				}()
-
-				Eventually(func() int {
-					return proc.GetBuffer().Size()
-				}, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
+				Eventually(outputSize).WithContext(ctx).Should(Equal(1))
 
 				msg, _ := proc.GetBuffer().Read()
 				Expect(msg.Key).To(Equal([]byte(event.UID)))
@@ -269,9 +235,8 @@ var _ = Describe("Processor", func() {
 				err := json.Unmarshal(msg.Value, &processed)
 				Expect(err).NotTo(HaveOccurred())
 
-				isEqual := reflect.DeepEqual(processed, *event)
-				Expect(isEqual).To(BeTrue())
-			})
+				Expect(processed).To(Equal(*event))
+			}, SpecTimeout(specTimeout))
 		})
 	})
 })
