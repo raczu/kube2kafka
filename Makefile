@@ -41,14 +41,14 @@ start: minikube kafka ## Start development environment
 
 minikube: LOG := /tmp/$(TIMESTAMP)-minikube-start.log
 minikube:
-	printf "\uea9c Starting Kubernetes cluster"
+	printf "→ Starting Kubernetes cluster"
 	minikube start -p $(K8S_CLUSTER_NAME) --kubernetes-version=$(K8S_VERSION) --driver=docker >$(LOG) 2>&1 \
 		|| { printf "\nFailed to start the Kubernetes cluster, see $(LOG)\n" >&2; exit 1; }
-	printf " \ueab2\n"
+	printf " ✓\n"
 
 kafka: LOG := /tmp/$(TIMESTAMP)-kafka-native-start.log
 kafka:
-	printf "\uea9c Starting kafka-native container"
+	printf "→ Starting kafka-native container"
 	docker run -d \
 		--name=kafka \
 		-p 9092:9092 \
@@ -65,7 +65,7 @@ kafka:
 		|| { printf "\nFailed to start kafka-native container, see $(LOG)\n" >&2; exit 1; }
 	for _ in $(shell seq 60); do \
 		if docker logs kafka 2>&1 | grep -q "Kafka Server started"; then \
-			printf " \ueab2\n"; \
+			printf " ✓\n"; \
 			exit 0; \
 		fi; \
 		sleep 1; \
@@ -76,14 +76,14 @@ kafka:
 stop: minikube-stop kafka-stop ## Stop development environment
 
 minikube-stop:
-	printf "\uea9c Stopping $(K8S_CLUSTER_NAME) cluster"
+	printf "→ Stopping $(K8S_CLUSTER_NAME) cluster"
 	minikube stop -p $(K8S_CLUSTER_NAME) >/dev/null 2>&1 || true
-	printf " \ueab2\n"
+	printf " ✓\n"
 
 kafka-stop:
-	printf "\uea9c Stopping kafka-native container"
+	printf "→ Stopping kafka-native container"
 	docker rm -f kafka >/dev/null 2>&1 || true
-	printf " \ueab2\n"
+	printf " ✓\n"
 
 status: ## Show status of development environment
 	minikube status -p $(K8S_CLUSTER_NAME) || true
