@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,23 @@ import (
 	"github.com/raczu/kube2kafka/pkg/kube"
 	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
 )
+
+// startInBackground runs mgr on its own context until the spec ends, then asserts that
+// it stopped without error.
+func startInBackground(mgr *manager.Manager) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- mgr.Start(ctx) }()
+
+	DeferCleanup(func(cctx SpecContext) {
+		cancel()
+		select {
+		case err := <-done:
+			Expect(err).NotTo(HaveOccurred())
+		case <-cctx.Done():
+		}
+	}, NodeTimeout(cleanupTimeout))
+}
 
 var _ = Describe("Manager", func() {
 	var (
@@ -61,16 +79,16 @@ var _ = Describe("Manager", func() {
 
 	When("setting up the manager", func() {
 		It("should return error if TLS config has issues", func() {
-			cafile, err := os.CreateTemp("", "kube2kafka-ca.crt")
-			defer os.Remove(cafile.Name())
-			Expect(err).NotTo(HaveOccurred())
+			// An empty file is not a valid CA certificate.
+			cafile := filepath.Join(GinkgoT().TempDir(), "ca.crt")
+			Expect(os.WriteFile(cafile, nil, 0o600)).To(Succeed())
 
 			config.Kafka.RawTLS = &k2kconfig.RawTLSData{
-				CA: cafile.Name(),
+				CA: cafile,
 			}
 
 			mgr = manager.New(config, &rest.Config{}, logger)
-			err = mgr.Setup()
+			err := mgr.Setup()
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -104,7 +122,7 @@ var _ = Describe("Manager", func() {
 			event *corev1.Event
 		)
 
-		BeforeEach(func() {
+		BeforeEach(func(ctx SpecContext) {
 			now := metav1.Now()
 			event = &corev1.Event{
 				ObjectMeta: metav1.ObjectMeta{
@@ -129,18 +147,14 @@ var _ = Describe("Manager", func() {
 			var err error
 			event, err = clientset.CoreV1().
 				Events(config.TargetNamespace).
-				Create(context.TODO(), event, metav1.CreateOptions{})
+				Create(ctx, event, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-		})
+		}, NodeTimeout(specTimeout))
 
 		It("should return error if manager was not set up", func() {
 			mgr = manager.New(config, &rest.Config{}, logger)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-			defer cancel()
-
-			err := mgr.Start(ctx)
-			Expect(err).To(HaveOccurred())
+			err := mgr.Start(context.Background())
 			Expect(err).To(MatchError(manager.ErrManagerNotSetup))
 		})
 
@@ -169,7 +183,7 @@ var _ = Describe("Manager", func() {
 					Expect(err).To(
 						MatchError(ContainSubstring(kafka.UnknownTopicOrPartition.Error())),
 					)
-				}, SpecTimeout(30*time.Second))
+				}, SpecTimeout(specTimeout))
 		})
 
 		Context("and all components work properly", Label("integration"), func() {
@@ -184,28 +198,18 @@ var _ = Describe("Manager", func() {
 					// No need to wait for the deletion: topic names are unique UUIDs.
 					Expect(kafkatest.DeleteTopic(ctx, config.Kafka.Brokers, config.Kafka.Topic)).
 						To(Succeed())
-				}, NodeTimeout(30*time.Second))
+				}, NodeTimeout(specTimeout))
 
 				reader = kafkatest.NewReader(config.Kafka.Brokers, config.Kafka.Topic)
 				DeferCleanup(reader.Close)
-			}, NodeTimeout(30*time.Second))
+			}, NodeTimeout(specTimeout))
 
 			It("should export the observed event", func(ctx SpecContext) {
 				mgr = manager.New(config, &rest.Config{}, logger)
 				Expect(mgr.Setup()).To(Succeed())
 
 				// The manager runs on its own context so that reading never stops it.
-				mctx, cancel := context.WithCancel(context.Background())
-				done := make(chan error, 1)
-				go func() { done <- mgr.Start(mctx) }()
-				DeferCleanup(func(cctx SpecContext) {
-					cancel()
-					select {
-					case err := <-done:
-						Expect(err).NotTo(HaveOccurred())
-					case <-cctx.Done():
-					}
-				}, NodeTimeout(10*time.Second))
+				startInBackground(mgr)
 
 				// Until the watcher has synced, stopping the manager returns a sync error.
 				Eventually(func() int {
@@ -215,7 +219,7 @@ var _ = Describe("Manager", func() {
 				var message kafka.Message
 				Eventually(func(g Gomega) {
 					var err error
-					message, err = kafkatest.ReadMessage(ctx, reader, time.Second)
+					message, err = kafkatest.ReadMessage(ctx, reader, readTimeout)
 					g.Expect(err).NotTo(HaveOccurred())
 				}).WithContext(ctx).Should(Succeed())
 
@@ -225,7 +229,7 @@ var _ = Describe("Manager", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(message.Value).To(MatchJSON(expected))
-			}, SpecTimeout(30*time.Second))
+			}, SpecTimeout(specTimeout))
 		})
 	})
 })

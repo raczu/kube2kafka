@@ -19,18 +19,12 @@ import (
 	kubewatcher "github.com/raczu/kube2kafka/pkg/kube/watcher"
 )
 
-const (
-	specTimeout = 10 * time.Second
-	// quietPeriod is how long a spec checks that nothing is written to the buffer.
-	quietPeriod = 500 * time.Millisecond
-)
-
-// watchUntilSynced runs w on its own context until the spec ends and waits for the
-// initial cache sync, so the cleanup can assert that Watch stopped without error.
-func watchUntilSynced(ctx context.Context, w *kubewatcher.Watcher, logs *observer.ObservedLogs) {
-	wctx, cancel := context.WithCancel(context.Background())
+// watchInBackground runs w on its own context until the spec ends, then asserts that
+// it stopped without error.
+func watchInBackground(w *kubewatcher.Watcher) {
+	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- w.Watch(wctx) }()
+	go func() { done <- w.Watch(ctx) }()
 
 	DeferCleanup(func(cctx SpecContext) {
 		cancel()
@@ -39,8 +33,12 @@ func watchUntilSynced(ctx context.Context, w *kubewatcher.Watcher, logs *observe
 			Expect(err).NotTo(HaveOccurred())
 		case <-cctx.Done():
 		}
-	}, NodeTimeout(specTimeout))
+	}, NodeTimeout(cleanupTimeout))
+}
 
+// waitForSync waits for the initial cache sync. Until then, stopping the watcher makes
+// Watch return a sync error.
+func waitForSync(ctx context.Context, logs *observer.ObservedLogs) {
 	Eventually(func() int {
 		return logs.FilterMessage("initial watcher cache synced").Len()
 	}).WithContext(ctx).Should(Equal(1))
@@ -86,7 +84,8 @@ var _ = Describe("Watcher", func() {
 
 		Context("and there are no events", func() {
 			It("should not write anything to the buffer", func(ctx SpecContext) {
-				watchUntilSynced(ctx, watcher, logs)
+				watchInBackground(watcher)
+				waitForSync(ctx, logs)
 
 				Consistently(bufferSize, quietPeriod).Should(Equal(0))
 			}, SpecTimeout(specTimeout))
@@ -120,7 +119,8 @@ var _ = Describe("Watcher", func() {
 					Create(ctx, event, metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
-				watchUntilSynced(ctx, watcher, logs)
+				watchInBackground(watcher)
+				waitForSync(ctx, logs)
 
 				Eventually(bufferSize).WithContext(ctx).Should(Equal(1))
 			}, SpecTimeout(specTimeout))
@@ -134,7 +134,8 @@ var _ = Describe("Watcher", func() {
 					Create(ctx, event, metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
-				watchUntilSynced(ctx, watcher, logs)
+				watchInBackground(watcher)
+				waitForSync(ctx, logs)
 
 				Consistently(bufferSize, quietPeriod).Should(Equal(0))
 			}, SpecTimeout(specTimeout))
@@ -161,7 +162,8 @@ var _ = Describe("Watcher", func() {
 				Create(ctx, dummy, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			watchUntilSynced(ctx, watcher, logs)
+			watchInBackground(watcher)
+			waitForSync(ctx, logs)
 
 			// Wait for the cache to sync.
 			Eventually(bufferSize).WithContext(ctx).Should(Equal(1))

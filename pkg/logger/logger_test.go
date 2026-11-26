@@ -58,7 +58,7 @@ var _ = Describe("Logger", func() {
 
 			It("should not output debug log", func() {
 				logger.Debug("debug message")
-				Expect(buffer.String()).ToNot(ContainSubstring("debug message"))
+				Expect(buffer.String()).NotTo(ContainSubstring("debug message"))
 			})
 
 			It("should output stacktrace at error level", func() {
@@ -82,7 +82,7 @@ var _ = Describe("Logger", func() {
 			err := fs.Parse(args)
 			opts.SetDefaults()
 
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(opts.Level.Enabled(zap.InfoLevel)).To(BeTrue())
 			Expect(opts.StacktraceLevel.Enabled(zap.ErrorLevel)).To(BeTrue())
 
@@ -94,7 +94,7 @@ var _ = Describe("Logger", func() {
 			Expect(res).To(HaveKey("ts"))
 
 			_, err = time.Parse(time.RFC3339, res["ts"])
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		Context("and their arguments are valid", func() {
@@ -102,7 +102,7 @@ var _ = Describe("Logger", func() {
 				args := []string{"-log-devel=true"}
 				err := fs.Parse(args)
 
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred())
 				Expect(opts.Development).To(BeTrue())
 			})
 
@@ -110,7 +110,7 @@ var _ = Describe("Logger", func() {
 				args := []string{"-log-level=debug"}
 				err := fs.Parse(args)
 
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred())
 				Expect(opts.Level.Enabled(zap.DebugLevel)).To(BeTrue())
 			})
 
@@ -118,14 +118,14 @@ var _ = Describe("Logger", func() {
 				args := []string{"-log-stacktrace-level=panic"}
 				err := fs.Parse(args)
 
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred())
 				Expect(opts.StacktraceLevel.Enabled(zap.PanicLevel)).To(BeTrue())
 			})
 
 			It("should set provided encoder", func() {
 				args := []string{"-log-encoder=json"}
 				err := fs.Parse(args)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred())
 
 				logger = log.New(log.UseOptions(opts))
 				logger.Info("info message")
@@ -137,7 +137,7 @@ var _ = Describe("Logger", func() {
 			It("should set provided time encoder", func() {
 				args := []string{"-log-time-encoder=rfc3339", "-log-encoder=json"}
 				err := fs.Parse(args)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred())
 
 				logger = log.New(log.UseOptions(opts))
 				logger.Info("info message")
@@ -147,7 +147,7 @@ var _ = Describe("Logger", func() {
 				Expect(res).To(HaveKey("ts"))
 
 				_, err = time.Parse(time.RFC3339, res["ts"])
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 

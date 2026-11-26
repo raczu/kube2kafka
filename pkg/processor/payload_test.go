@@ -138,7 +138,7 @@ var _ = Describe("PayloadCustomizer", func() {
 				customizer.Selectors = selectors
 
 				_ = customizer.Customize(event)
-				Expect(customizationErr).NotTo(BeNil())
+				Expect(customizationErr).To(HaveOccurred())
 			})
 
 			It("should use fallback function when accessing non-existing field", func() {
@@ -151,10 +151,9 @@ var _ = Describe("PayloadCustomizer", func() {
 				customizer.Selectors = selectors
 
 				_ = customizer.Customize(event)
-				Expect(customizationErr).NotTo(BeNil())
-				Expect(
-					customizationErr.Error(),
-				).To(ContainSubstring("can't evaluate field NonExistingField"))
+				Expect(customizationErr).To(
+					MatchError(ContainSubstring("can't evaluate field NonExistingField")),
+				)
 			})
 
 			It("should use fallback function when evaluating nil pointer", func() {
@@ -167,8 +166,7 @@ var _ = Describe("PayloadCustomizer", func() {
 				customizer.Selectors = selectors
 
 				_ = customizer.Customize(event)
-				Expect(customizationErr).NotTo(BeNil())
-				Expect(customizationErr.Error()).To(ContainSubstring("nil pointer evaluating"))
+				Expect(customizationErr).To(MatchError(ContainSubstring("nil pointer evaluating")))
 			})
 		})
 	})

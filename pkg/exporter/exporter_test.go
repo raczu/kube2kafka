@@ -3,7 +3,6 @@ package exporter_test
 import (
 	"context"
 	"os"
-	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -30,7 +29,7 @@ func exportInBackground(exp *exporter.Exporter) {
 			Expect(err).NotTo(HaveOccurred())
 		case <-cctx.Done():
 		}
-	}, NodeTimeout(10*time.Second))
+	}, NodeTimeout(cleanupTimeout))
 }
 
 var _ = Describe("Exporter", Label("integration"), func() {
@@ -56,7 +55,7 @@ var _ = Describe("Exporter", Label("integration"), func() {
 
 				err := exp.Export(ctx)
 				Expect(err).To(MatchError(ContainSubstring(kafka.UnknownTopicOrPartition.Error())))
-			}, SpecTimeout(30*time.Second))
+			}, SpecTimeout(specTimeout))
 		})
 
 		Context("and the topic exists", func() {
@@ -69,11 +68,11 @@ var _ = Describe("Exporter", Label("integration"), func() {
 				DeferCleanup(func(ctx SpecContext) {
 					// No need to wait for the deletion: topic names are unique UUIDs.
 					Expect(kafkatest.DeleteTopic(ctx, brokers, topic)).To(Succeed())
-				}, NodeTimeout(30*time.Second))
+				}, NodeTimeout(specTimeout))
 
 				reader = kafkatest.NewReader(brokers, topic)
 				DeferCleanup(reader.Close)
-			}, NodeTimeout(30*time.Second))
+			}, NodeTimeout(specTimeout))
 
 			It("should export a message successfully", func(ctx SpecContext) {
 				message := &kafka.Message{Key: []byte("key"), Value: []byte("value")}
@@ -85,13 +84,13 @@ var _ = Describe("Exporter", Label("integration"), func() {
 				var received kafka.Message
 				Eventually(func(g Gomega) {
 					var err error
-					received, err = kafkatest.ReadMessage(ctx, reader, time.Second)
+					received, err = kafkatest.ReadMessage(ctx, reader, readTimeout)
 					g.Expect(err).NotTo(HaveOccurred())
 				}).WithContext(ctx).Should(Succeed())
 
 				Expect(received.Key).To(Equal(message.Key))
 				Expect(received.Value).To(Equal(message.Value))
-			}, SpecTimeout(30*time.Second))
+			}, SpecTimeout(specTimeout))
 
 			It("should export multiple messages at once successfully", func(ctx SpecContext) {
 				messages := []*kafka.Message{
@@ -108,7 +107,7 @@ var _ = Describe("Exporter", Label("integration"), func() {
 
 				var received []kafka.Message
 				Eventually(func(g Gomega) {
-					msg, err := kafkatest.ReadMessage(ctx, reader, time.Second)
+					msg, err := kafkatest.ReadMessage(ctx, reader, readTimeout)
 					g.Expect(err).NotTo(HaveOccurred())
 					received = append(received, msg)
 					g.Expect(received).To(HaveLen(len(messages)))
@@ -118,7 +117,7 @@ var _ = Describe("Exporter", Label("integration"), func() {
 					Expect(received[i].Key).To(Equal(msg.Key))
 					Expect(received[i].Value).To(Equal(msg.Value))
 				}
-			}, SpecTimeout(30*time.Second))
+			}, SpecTimeout(specTimeout))
 		})
 	})
 })
