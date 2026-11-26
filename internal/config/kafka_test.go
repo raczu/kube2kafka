@@ -79,6 +79,38 @@ var _ = Describe("RawSASLData", func() {
 })
 
 var _ = Describe("KafkaConfig", func() {
+	When("validating the TLS client certificate", func() {
+		var kc *config.KafkaConfig
+
+		BeforeEach(func() {
+			kc = &config.KafkaConfig{
+				Brokers: []string{"localhost:9092"},
+				Topic:   "t",
+				RawTLS:  &config.RawTLSData{},
+			}
+		})
+
+		It("should return an error if only the cert is set", func() {
+			kc.RawTLS.Cert = "client.crt"
+			Expect(kc.Validate()).To(MatchError("tls: cert is set but key is missing"))
+		})
+
+		It("should return an error if only the key is set", func() {
+			kc.RawTLS.Key = "client.key"
+			Expect(kc.Validate()).To(MatchError("tls: key is set but cert is missing"))
+		})
+
+		It("should accept both the cert and the key", func() {
+			kc.RawTLS.Cert = "client.crt"
+			kc.RawTLS.Key = "client.key"
+			Expect(kc.Validate()).To(Succeed())
+		})
+
+		It("should accept neither the cert nor the key", func() {
+			Expect(kc.Validate()).To(Succeed())
+		})
+	})
+
 	When("getting the SASL mechanism", func() {
 		DescribeTable("should return the configured mechanism",
 			func(mechanism, name string) {

@@ -30,6 +30,18 @@ func (c *Config) SetDefaults() {
 	if c.BufferSize == 0 {
 		c.BufferSize = watcher.DefaultEventBufferCap
 	}
+
+	if c.Kafka == nil {
+		return
+	}
+
+	if c.Kafka.RawCompression == "" {
+		c.Kafka.RawCompression = "none"
+	}
+
+	if c.Kafka.RawSASL != nil && c.Kafka.RawSASL.Mechanism == "" {
+		c.Kafka.RawSASL.Mechanism = "plain"
+	}
 }
 
 func (c *Config) Validate() error {

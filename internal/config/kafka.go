@@ -50,7 +50,7 @@ func (r *RawTLSData) Build() (*tls.Config, error) {
 type RawSASLData struct {
 	Username  string `yaml:"username"`
 	Password  string `yaml:"password"`
-	Mechanism string `yaml:"mechanism" default:"plain"`
+	Mechanism string `yaml:"mechanism"`
 }
 
 func (r *RawSASLData) Validate() error {
@@ -75,7 +75,7 @@ func (r *RawSASLData) Build() (sasl.Mechanism, error) {
 type KafkaConfig struct {
 	Brokers        []string     `yaml:"brokers"`
 	Topic          string       `yaml:"topic"`
-	RawCompression string       `yaml:"compression" default:"none"`
+	RawCompression string       `yaml:"compression"`
 	RawTLS         *RawTLSData  `yaml:"tls"`
 	RawSASL        *RawSASLData `yaml:"sasl"`
 }
@@ -87,6 +87,15 @@ func (c *KafkaConfig) Validate() error {
 
 	if c.Topic == "" {
 		return fmt.Errorf("topic is required")
+	}
+
+	if c.RawTLS != nil {
+		if c.RawTLS.Cert != "" && c.RawTLS.Key == "" {
+			return fmt.Errorf("tls: cert is set but key is missing")
+		}
+		if c.RawTLS.Key != "" && c.RawTLS.Cert == "" {
+			return fmt.Errorf("tls: key is set but cert is missing")
+		}
 	}
 
 	if c.RawSASL != nil {
