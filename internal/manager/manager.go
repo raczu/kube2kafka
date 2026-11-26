@@ -110,7 +110,9 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	m.logger.Info("starting manager...")
-	errs := make(chan error, 1)
+	// One slot per component that can fail (watcher, exporter): after ctx is canceled
+	// nothing receives until wg.Wait() returns, so a second send must not block.
+	errs := make(chan error, 2)
 	subctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
