@@ -89,6 +89,15 @@ func (c *KafkaConfig) Validate() error {
 		return fmt.Errorf("topic is required")
 	}
 
+	if c.RawTLS != nil {
+		if c.RawTLS.Cert != "" && c.RawTLS.Key == "" {
+			return fmt.Errorf("tls: cert is set but key is missing")
+		}
+		if c.RawTLS.Key != "" && c.RawTLS.Cert == "" {
+			return fmt.Errorf("tls: key is set but cert is missing")
+		}
+	}
+
 	if c.RawSASL != nil {
 		if err := c.RawSASL.Validate(); err != nil {
 			return fmt.Errorf("sasl config has issues: %w", err)
