@@ -56,8 +56,13 @@ formatters:
   enable:
     - gofmt
     - goimports
+    - golines
 
   settings:
+    golines:
+      max-len: 100
+      tab-len: 4
+
     goimports:
       local-prefixes:
         - github.com/raczu/kube2kafka

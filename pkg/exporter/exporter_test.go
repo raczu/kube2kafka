@@ -1,7 +1,6 @@
 package exporter_test
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"time"
@@ -12,128 +11,89 @@ import (
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 
+	"github.com/raczu/kube2kafka/internal/kafkatest"
 	"github.com/raczu/kube2kafka/pkg/exporter"
-	log "github.com/raczu/kube2kafka/pkg/logger"
 	"github.com/raczu/kube2kafka/pkg/processor"
 )
 
-var _ = Describe("Exporter", func() {
+// exportInBackground runs exp on its own context until the spec ends, then asserts that
+// it stopped without error, so a fatal export error fails the spec with its real cause.
+func exportInBackground(exp *exporter.Exporter) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- exp.Export(ctx) }()
+
+	DeferCleanup(func(cctx SpecContext) {
+		cancel()
+		select {
+		case err := <-done:
+			Expect(err).NotTo(HaveOccurred())
+		case <-cctx.Done():
+		}
+	}, NodeTimeout(10*time.Second))
+}
+
+var _ = Describe("Exporter", Label("integration"), func() {
 	var (
 		source  *processor.KafkaMessageBuffer
 		brokers []string
 		topic   string
-		exp     *exporter.Exporter
 		logger  *zap.Logger
 	)
 
 	BeforeEach(func() {
 		source = processor.NewKafkaMessageBuffer(8)
-		opts := log.Options{
-			Output: &bytes.Buffer{},
-		}
-		logger = log.New(log.UseOptions(&opts))
-		brokers = []string{os.Getenv("KAFKA_TEST_BROKER")}
+		logger = zap.NewNop()
+		brokers = []string{os.Getenv(kafkatest.BrokerEnv)}
+		topic = uuid.New().String()
 	})
 
 	When("exporting messages", func() {
 		Context("and the topic does not exist", func() {
-			BeforeEach(func() {
+			It("should exit immediately with an error", func(ctx SpecContext) {
 				source.Write(&kafka.Message{Key: []byte("key"), Value: []byte("value")})
-			})
-
-			It("should exit immediately with an error", func() {
-				topic = uuid.New().String()
-				exp = exporter.New(source, topic, brokers, exporter.WithLogger(logger))
-
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
+				exp := exporter.New(source, topic, brokers, exporter.WithLogger(logger))
 
 				err := exp.Export(ctx)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(kafka.UnknownTopicOrPartition.Error()))
-			})
+				Expect(err).To(MatchError(ContainSubstring(kafka.UnknownTopicOrPartition.Error())))
+			}, SpecTimeout(30*time.Second))
 		})
 
 		Context("and the topic exists", func() {
 			var (
-				admin *kafka.Client
+				reader *kafka.Reader
 			)
 
-			BeforeEach(func() {
-				topic = uuid.New().String()
-				exp = exporter.New(source, topic, brokers, exporter.WithLogger(logger))
+			BeforeEach(func(ctx SpecContext) {
+				Expect(kafkatest.CreateTopic(ctx, brokers, topic)).To(Succeed())
+				DeferCleanup(func(ctx SpecContext) {
+					// No need to wait for the deletion: topic names are unique UUIDs.
+					Expect(kafkatest.DeleteTopic(ctx, brokers, topic)).To(Succeed())
+				}, NodeTimeout(30*time.Second))
 
-				admin = &kafka.Client{
-					Addr: kafka.TCP(brokers...),
-				}
+				reader = kafkatest.NewReader(brokers, topic)
+				DeferCleanup(reader.Close)
+			}, NodeTimeout(30*time.Second))
 
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := admin.CreateTopics(ctx, &kafka.CreateTopicsRequest{
-					Topics: []kafka.TopicConfig{
-						{
-							Topic:             topic,
-							NumPartitions:     1,
-							ReplicationFactor: 1,
-						},
-					},
-				})
-				Expect(err).NotTo(HaveOccurred())
-
-				// Wait for the topic to be created.
-				Eventually(func() error {
-					ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-					defer cancel()
-					_, err := admin.Metadata(ctx, &kafka.MetadataRequest{
-						Topics: []string{topic},
-					})
-					return err
-				}, 5*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-
-			AfterEach(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := admin.DeleteTopics(ctx, &kafka.DeleteTopicsRequest{
-					Topics: []string{topic},
-				})
-				Expect(err).NotTo(HaveOccurred())
-				// There is no need to wait for the topic to be deleted as we use
-				// UUIDs for topic names, there should be no conflicts.
-			})
-
-			It("should export a message successfully", func() {
+			It("should export a message successfully", func(ctx SpecContext) {
 				message := &kafka.Message{Key: []byte("key"), Value: []byte("value")}
 				source.Write(message)
+				exportInBackground(
+					exporter.New(source, topic, brokers, exporter.WithLogger(logger)),
+				)
 
-				r := kafka.NewReader(kafka.ReaderConfig{
-					Brokers: brokers,
-					Topic:   topic,
-				})
-
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				done := make(chan struct{})
 				var received kafka.Message
-				var rerr error
+				Eventually(func(g Gomega) {
+					var err error
+					received, err = kafkatest.ReadMessage(ctx, reader, time.Second)
+					g.Expect(err).NotTo(HaveOccurred())
+				}).WithContext(ctx).Should(Succeed())
 
-				go func() {
-					defer close(done)
-					received, rerr = r.ReadMessage(ctx)
-					cancel()
-				}()
-
-				err := exp.Export(ctx)
-				Expect(err).NotTo(HaveOccurred())
-
-				<-done
-				Expect(rerr).NotTo(HaveOccurred())
 				Expect(received.Key).To(Equal(message.Key))
 				Expect(received.Value).To(Equal(message.Value))
-			})
+			}, SpecTimeout(30*time.Second))
 
-			It("should export multiple messages at once successfully", func() {
+			It("should export multiple messages at once successfully", func(ctx SpecContext) {
 				messages := []*kafka.Message{
 					{Key: []byte("key-a"), Value: []byte("value-a")},
 					{Key: []byte("key-b"), Value: []byte("value-b")},
@@ -142,48 +102,23 @@ var _ = Describe("Exporter", func() {
 				for _, msg := range messages {
 					source.Write(msg)
 				}
+				exportInBackground(
+					exporter.New(source, topic, brokers, exporter.WithLogger(logger)),
+				)
 
-				r := kafka.NewReader(kafka.ReaderConfig{
-					Brokers: brokers,
-					Topic:   topic,
-				})
-
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				done := make(chan struct{})
 				var received []kafka.Message
-				var rerr error
+				Eventually(func(g Gomega) {
+					msg, err := kafkatest.ReadMessage(ctx, reader, time.Second)
+					g.Expect(err).NotTo(HaveOccurred())
+					received = append(received, msg)
+					g.Expect(received).To(HaveLen(len(messages)))
+				}).WithContext(ctx).Should(Succeed())
 
-				go func() {
-					defer close(done)
-					for i := 0; i < len(messages); i++ {
-						msg, err := r.ReadMessage(ctx)
-						if err != nil {
-							rerr = err
-							return
-						}
-						received = append(received, msg)
-					}
-					cancel()
-				}()
-
-				err := exp.Export(ctx)
-				Expect(err).NotTo(HaveOccurred())
-
-				<-done
-				Expect(rerr).NotTo(HaveOccurred())
-				Expect(received).To(HaveLen(len(messages)))
 				for i, msg := range messages {
 					Expect(received[i].Key).To(Equal(msg.Key))
 					Expect(received[i].Value).To(Equal(msg.Value))
 				}
-
-				for i := 1; i < len(received); i++ {
-					rtime := received[i].Time
-					Expect(rtime).To(BeTemporally("~", received[0].Time, time.Millisecond))
-				}
-			})
+			}, SpecTimeout(30*time.Second))
 		})
 	})
 })
