@@ -1,0 +1,48 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node images published by the kind version in go.mod.
+        k8s: [1.35.8, 1.36.4, 1.37.0]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: stable
+
+      - name: start kind and kafka
+        env:
+          K8S_VERSION: ${{ matrix.k8s }}
+        run: make start K8S_VERSION="$K8S_VERSION"
+
+      - name: test
+        run: make test-e2e
+
+      - name: dump state
+        if: failure()
+        run: |
+          kubectl get all -A || true
+          kubectl -n kube2kafka logs deploy/kube2kafka || true
+          docker logs kafka || true
+          tail -n +1 /tmp/*.log || true
