@@ -1,6 +1,7 @@
 # kube2kafka
 
 [![development][development badge]][development workflow]
+[![e2e][e2e badge]][e2e workflow]
 [![coverage][coverage badge]][sonarqube]
 [![OpenSSF Scorecard][scorecard badge]][scorecard]
 
@@ -67,20 +68,18 @@ versions with the broker, so it is not affected by the protocol versions removed
 
 ## Deployment
 
-Deploying kube2kafka is simple and requires to create namespace, either `kube2kafka` or custom one
-(but remember to update the `namespace` field in the manifests). All necessary manifests are located
-in the `deploy` directory and should be applied in the following order:
+All necessary manifests, including the `kube2kafka` namespace, are located in the `deploy`
+directory and can be applied with kustomize:
 
 ```bash
-kubectl apply -f deploy/rbac.yml
-kubectl apply -f deploy/config.yml
-kubectl apply -f deploy/deployment.yml
+kubectl apply -k deploy/
 ```
 
-Before applying the configuration manifest, ensure to update the `config.yml` according to your
-specific requirements, such as topic name, brokers, filters, and other relevant settings.
-Additionally, in `deployment.yaml`, adjust the resource limits and requests based on your workload
-needs.
+Before applying, update the configuration in `deploy/config.yml` according to your specific
+requirements, such as topic name, brokers, filters, and other relevant settings. Additionally, in
+`deploy/deployment.yml`, adjust the resource limits and requests based on your workload needs. To
+deploy into a different namespace, set `namespace` in a kustomization that uses `deploy/` as a
+resource.
 
 ## Troubleshooting
 
@@ -113,6 +112,8 @@ understand what's happening with the events.
 
 [development workflow]: https://github.com/raczu/kube2kafka/actions/workflows/development.yml
 [development badge]: https://github.com/raczu/kube2kafka/actions/workflows/development.yml/badge.svg?event=push
+[e2e workflow]: https://github.com/raczu/kube2kafka/actions/workflows/e2e.yml
+[e2e badge]: https://github.com/raczu/kube2kafka/actions/workflows/e2e.yml/badge.svg?event=push
 [sonarqube]: https://sonarcloud.io/summary/new_code?id=raczu_kube2kafka
 [coverage badge]: https://sonarcloud.io/api/project_badges/measure?project=raczu_kube2kafka&metric=coverage
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/raczu/kube2kafka

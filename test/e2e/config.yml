@@ -1,0 +1,24 @@
+clusterName: kube2kafka-e2e
+namespace: kube2kafka-e2e-target
+maxEventAge: 1h
+kafka:
+  brokers:
+    - kafka:9093
+  topic: kube2kafka-e2e
+filters:
+  - reason: "^E2EMatch$"
+selectors:
+  - key: cluster
+    value: "{{ .ClusterName }}"
+  - key: kind
+    value: "{{ .InvolvedObject.Kind }}"
+  - key: name
+    value: "{{ .InvolvedObject.Name }}"
+  - key: namespace
+    value: "{{ .Namespace }}"
+  - key: reason
+    value: "{{ .Reason }}"
+  - key: message
+    value: "{{ .Message }}"
+  - key: count
+    value: "{{ .Count }}"
