@@ -9,8 +9,10 @@ endif
 GINKGO_BASE_FLAGS = -r -cover -race -coverprofile=coverage.out
 ifdef CI
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) --github-output
+GINKGO_E2E_FLAGS = --github-output
 else
 GINKGO_FLAGS = $(GINKGO_BASE_FLAGS) -v -p
+GINKGO_E2E_FLAGS = -v
 endif
 
 # A kindest/node image must exist for this version; kind publishes full patch versions only.
@@ -105,6 +107,34 @@ test-unit: ## Run unit tests (no external dependencies)
 
 test-integration: ## Run integration tests (needs Kafka)
 	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_FLAGS) --label-filter='integration'
+
+# No -p: the e2e specs share one deployment, topic and reader.
+test-e2e: LOG := /tmp/$(TIMESTAMP)-test-e2e.log
+test-e2e: ## Run e2e tests against the kind cluster (needs "make start")
+	if [ "$$(kubectl config current-context)" != "kind-$(K8S_CLUSTER_NAME)" ]; then \
+		printf "Current kubectl context is not kind-$(K8S_CLUSTER_NAME); run \"make start\" or \"kubectl config use-context kind-$(K8S_CLUSTER_NAME)\"\n" >&2; \
+		exit 1; \
+	fi
+	if [ -z "$$(docker inspect -f '{{ if index .NetworkSettings.Networks "kind" }}yes{{ end }}' kafka)" ]; then \
+		printf "→ Connecting kafka to the kind network"; \
+		docker network connect kind kafka; \
+		printf " ✓\n"; \
+	fi
+	printf "→ Building kube2kafka:e2e image"
+	{ $(MAKE) --no-print-directory docker-build && docker tag kube2kafka:$(VERSION) kube2kafka:e2e; } >$(LOG) 2>&1 \
+		|| { printf "\nFailed to build the image, see $(LOG)\n" >&2; exit 1; }
+	printf " ✓\n"
+	printf "→ Loading image into $(K8S_CLUSTER_NAME) cluster"
+	go tool kind load docker-image kube2kafka:e2e --name=$(K8S_CLUSTER_NAME) >>$(LOG) 2>&1 \
+		|| { printf "\nFailed to load the image, see $(LOG)\n" >&2; exit 1; }
+	printf " ✓\n"
+	printf "→ Deploying kube2kafka"
+	{ kubectl apply -k test/e2e \
+		&& kubectl -n kube2kafka rollout restart deployment/kube2kafka \
+		&& kubectl -n kube2kafka rollout status deployment/kube2kafka --timeout=2m; } >>$(LOG) 2>&1 \
+		|| { printf "\nFailed to deploy kube2kafka, see $(LOG)\n" >&2; exit 1; }
+	printf " ✓\n"
+	KAFKA_TEST_BROKER=$(KAFKA_TEST_BROKER) go tool ginkgo $(GINKGO_E2E_FLAGS) --label-filter='e2e' ./test/e2e
 
 ##@ Build
 
